@@ -1,0 +1,41 @@
+import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { z } from "zod";
+import { membersTable } from "./members";
+import { standardsTable } from "./standards";
+
+export const standardAssignmentsTable = pgTable(
+  "faction_standard_assignments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    standardId: uuid("standard_id")
+      .notNull()
+      .references(() => standardsTable.id, { onDelete: "restrict" }),
+    assigneeId: uuid("assignee_id")
+      .notNull()
+      .references(() => membersTable.id, { onDelete: "restrict" }),
+    assignedById: uuid("assigned_by_id")
+      .notNull()
+      .references(() => membersTable.id, { onDelete: "restrict" }),
+    dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+    status: text("status").notNull().default("not_submitted"),
+    assignedAt: timestamp("assigned_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("faction_standard_assignments_assignee_idx").on(table.assigneeId),
+    index("faction_standard_assignments_status_idx").on(table.status),
+    index("faction_standard_assignments_due_idx").on(table.dueAt),
+  ],
+).enableRLS();
+
+export const insertStandardAssignmentSchema = z.object({
+  standardId: z.string().uuid(),
+  assigneeId: z.string().uuid(),
+  assignedById: z.string().uuid(),
+  dueAt: z.date(),
+});
+
+export type StandardAssignment = typeof standardAssignmentsTable.$inferSelect;
+export type InsertStandardAssignment =
+  typeof standardAssignmentsTable.$inferInsert;

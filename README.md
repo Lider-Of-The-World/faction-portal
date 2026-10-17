@@ -1,2 +1,55 @@
-# faction-portal
-Faction control portal — first leader is initialized automatically; initial password change required.
+# Штаб фракции
+
+Веб-приложение для внутреннего управления составом: аккаунты и роли, нормативы, поручения, отправка скриншотов, проверка версий, уведомления и дисциплинарный реестр. Сервер — Express + Supabase PostgreSQL/Drizzle; интерфейс — React/Vite.
+
+## Подготовка и запуск
+
+Требуются Node.js 24 и pnpm 10.26.1.
+
+```bash
+pnpm install --frozen-lockfile
+cp .env.example .env
+# заполните .env локальными настройками и секретами, не коммитьте его
+pnpm db:migrate
+pnpm run build
+```
+
+Для локальной проверки production-потока выполните `pnpm run build`, затем `NODE_ENV=production PORT=5000 pnpm --filter @workspace/api-server run start`; один Express-сервис отдаёт и UI, и API. Перед запуском должны быть заданы `DATABASE_URL`, `SESSION_SECRET`, `CRON_SECRET` и рабочие Dropbox-переменные из `.env.example`. При первом открытии приложения в пустой базе автоматически создаётся лидер `Winston_Goodmam` с начальным паролем `1234`. До смены этого пароля доступ к остальным разделам закрыт.
+
+## Команды
+
+| Команда | Назначение |
+|---|---|
+| `pnpm run typecheck` | Проверка TypeScript workspace |
+| `pnpm test` | Unit-тесты дисциплинарной логики и защиты cron |
+| `pnpm run build` | Typecheck, production-сборка API и UI |
+| `pnpm db:generate` | Сгенерировать Drizzle SQL-миграцию после изменения схемы |
+| `pnpm db:migrate` | Применить миграции из `lib/db/migrations` |
+| `pnpm --filter @workspace/api-server run bootstrap:leader` | Необязательная ручная проверка/инициализация первого лидера |
+
+## Хранение и доступ
+
+- Supabase PostgreSQL хранит аккаунты, сессии, метаданные загрузок, задания, нормативы, проверки и историю дисциплинарных решений. Все таблицы приложения используют RLS без браузерных политик; бэкенд подключается через серверный `DATABASE_URL`, а проверка доступа остаётся в Express.
+- Скриншоты в Render сохраняются в закрытую папку Dropbox через серверный Dropbox API v2. Секреты Dropbox никогда не выдаются браузеру; ссылки общего доступа не создаются. Выдача файла остаётся за авторизованным API-маршрутом с проверкой владельца, роли и связи с назначением.
+- Для Replit можно оставить прежний provider `replit`; на Render задайте `OBJECT_STORAGE_PROVIDER=dropbox`. Постоянные данные не размещаются на файловой системе Render.
+- `/health` проверяет, что процесс отвечает; `/ready` дополнительно проверяет подключение к PostgreSQL. Старый `/api/healthz` сохранён.
+- Внешний cron обслуживает `/api/cron/maintenance`; детали — в [EXTERNAL_CRON_RU.md](EXTERNAL_CRON_RU.md).
+
+## Деплой и настройка
+
+- [Render Free + Supabase: сервис, подключение БД, миграции и переменные](DEPLOY_RENDER_RU.md)
+- [GitHub: чистый репозиторий и публикация](GITHUB_RU.md)
+- [Dropbox: закрытое постоянное хранилище скриншотов](DROPBOX_STORAGE_RU.md)
+- [Внешний cron](EXTERNAL_CRON_RU.md)
+- [Переменные окружения без реальных секретов](.env.example)
+
+`render.yaml` задаёт бесплатный Render Web Service и не создаёт платную базу Render: данные хранятся в Supabase. Бесплатный тариф не гарантирует круглосуточную доступность — Render усыпляет простаивающий сервис, а Supabase может приостановить неактивный проект; подробности и ограничения — в [инструкции по деплою](DEPLOY_RENDER_RU.md).
+
+## Первый запуск в production
+
+1. Создайте Supabase-проект и добавьте его Session Pooler URI как `DATABASE_URL` в Render; выберите Frankfurt в обоих сервисах.
+2. Создайте Render Blueprint из `render.yaml`, затем добавьте секреты Dropbox в Render Environment. Миграции запускаются перед сервером автоматически.
+3. Откройте приложение: при первом обращении к пустой базе лидер создаётся автоматически. Войдите как `Winston_Goodmam` с паролем `1234`; система принудительно направит на смену пароля (минимум 10 символов).
+4. Не передавайте ссылку другим до смены начального пароля: пароль фиксированный и предназначен только для первичной настройки. Затем проверьте `/health`, `/ready`, роли и защищённое открытие скриншота.
+
+Наличие исходников и конфигурации не означает, что production-сервис уже создан. Реальный запуск требует аккаунтов Render/Dropbox, секретов пользователя и запуска Blueprint.

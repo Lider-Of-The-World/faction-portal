@@ -1,0 +1,1190 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API для управления игровой фракцией
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+  - name: auth
+  - name: dashboard
+  - name: members
+  - name: events
+  - name: standards
+  - name: standard-assignments
+  - name: tasks
+  - name: discipline
+  - name: audit
+  - name: storage
+  - name: notifications
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Проверка доступности API
+      responses:
+        "200":
+          description: API работает
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /auth/setup-status:
+    get:
+      operationId: getSetupStatus
+      tags: [auth]
+      summary: Проверить и при необходимости завершить начальную настройку первого лидера
+      responses:
+        "200":
+          description: Состояние первоначальной настройки
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SetupStatus"
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Войти в аккаунт
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Вход выполнен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionUser"
+        "401":
+          description: Неверные данные или аккаунт заблокирован
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Получить текущий аккаунт
+      responses:
+        "200":
+          description: Текущий пользователь
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionUser"
+        "401":
+          description: Требуется вход
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Завершить текущую сессию
+      responses:
+        "200":
+          description: Сессия завершена
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+  /auth/change-password:
+    post:
+      operationId: changePassword
+      tags: [auth]
+      summary: Сменить пароль текущего пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordInput"
+      responses:
+        "200":
+          description: Пароль изменён, активные сессии обновлены
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "400":
+          description: Некорректный пароль
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [dashboard]
+      summary: Сводка штаба и последние события
+      responses:
+        "200":
+          description: Сводная информация
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+  /members:
+    get:
+      operationId: listMembers
+      tags: [members]
+      summary: Список сотрудников с учётом роли
+      responses:
+        "200":
+          description: Сотрудники
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Member"
+    post:
+      operationId: createMember
+      tags: [members]
+      summary: Создать сотрудника и сгенерировать временный пароль
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberInput"
+      responses:
+        "201":
+          description: Аккаунт создан; временный пароль показывается только один раз
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberCredentials"
+        "403":
+          description: Недостаточно прав
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /members/{id}:
+    patch:
+      operationId: updateMember
+      tags: [members]
+      summary: Изменить роль, звание или статус сотрудника
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberUpdate"
+      responses:
+        "200":
+          description: Сотрудник обновлён
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        "403":
+          description: Недостаточно прав
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /events:
+    get:
+      operationId: listEvents
+      tags: [events]
+      summary: Список мероприятий
+      responses:
+        "200":
+          description: Мероприятия
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Event"
+    post:
+      operationId: createEvent
+      tags: [events]
+      summary: Создать мероприятие
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventInput"
+      responses:
+        "201":
+          description: Мероприятие создано
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+  /events/{id}:
+    patch:
+      operationId: updateEvent
+      tags: [events]
+      summary: Изменить мероприятие
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventUpdate"
+      responses:
+        "200":
+          description: Мероприятие обновлено
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+    delete:
+      operationId: deleteEvent
+      tags: [events]
+      summary: Удалить мероприятие
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Мероприятие удалено
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+  /standards:
+    get:
+      operationId: listStandards
+      tags: [standards]
+      summary: Список нормативов
+      responses:
+        "200":
+          description: Нормативы
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Standard"
+    post:
+      operationId: createStandard
+      tags: [standards]
+      summary: Создать норматив
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StandardInput"
+      responses:
+        "201":
+          description: Норматив создан
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Standard"
+  /standards/{id}:
+    patch:
+      operationId: updateStandard
+      tags: [standards]
+      summary: Изменить норматив
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StandardUpdate"
+      responses:
+        "200":
+          description: Норматив обновлён
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Standard"
+    delete:
+      operationId: deleteStandard
+      tags: [standards]
+      summary: Удалить норматив
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Норматив удалён
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+  /standard-assignments:
+    get:
+      operationId: listStandardAssignments
+      tags: [standard-assignments]
+      summary: Список назначенных нормативов с учётом роли
+      responses:
+        "200":
+          description: Назначенные нормативы
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StandardAssignment"
+    post:
+      operationId: createStandardAssignment
+      tags: [standard-assignments]
+      summary: Назначить норматив сотруднику
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StandardAssignmentInput"
+      responses:
+        "201":
+          description: Норматив назначен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardAssignment"
+  /standard-assignments/{id}/submissions:
+    get:
+      operationId: listStandardSubmissions
+      tags: [standard-assignments]
+      summary: История всех версий сдачи норматива
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Версии сдачи
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/StandardSubmission" }
+    post:
+      operationId: submitStandard
+      tags: [standard-assignments]
+      summary: Отправить или пересдать норматив
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StandardSubmissionInput" }
+      responses:
+        "201":
+          description: Версия отправлена на проверку
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StandardSubmission" }
+  /standard-submissions/{id}/review:
+    patch:
+      operationId: reviewStandardSubmission
+      tags: [standard-assignments]
+      summary: Проверить норматив и сохранить результат с обязательной причиной
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StandardReviewInput" }
+      responses:
+        "200":
+          description: Результат проверки сохранён
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StandardSubmission" }
+  /tasks:
+    get:
+      operationId: listTasks
+      tags: [tasks]
+      summary: Список заданий с учётом роли и назначений
+      responses:
+        "200":
+          description: Задания
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+    post:
+      operationId: createTask
+      tags: [tasks]
+      summary: Создать задание
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskInput"
+      responses:
+        "201":
+          description: Задание создано
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+  /tasks/{id}:
+    patch:
+      operationId: updateTask
+      tags: [tasks]
+      summary: Изменить статус, исполнителя или сведения задания
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskUpdate"
+      responses:
+        "200":
+          description: Задание обновлено
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+    delete:
+      operationId: deleteTask
+      tags: [tasks]
+      summary: Удалить задание
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Задание удалено
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+  /tasks/{id}/submissions:
+    get:
+      operationId: listTaskSubmissions
+      tags: [tasks]
+      summary: История всех версий выполнения задания
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Версии выполнения
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TaskSubmission" }
+    post:
+      operationId: submitTask
+      tags: [tasks]
+      summary: Отправить или пересдать задание
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TaskSubmissionInput" }
+      responses:
+        "201":
+          description: Выполнение отправлено на проверку
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskSubmission" }
+  /task-submissions/{id}/review:
+    patch:
+      operationId: reviewTaskSubmission
+      tags: [tasks]
+      summary: Проверить выполнение задания
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TaskReviewInput" }
+      responses:
+        "200":
+          description: Результат проверки сохранён
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskSubmission" }
+  /tasks/{id}/cancel:
+    post:
+      operationId: cancelTask
+      tags: [tasks]
+      summary: Отменить задание без удаления истории
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TaskCancelInput" }
+      responses:
+        "200":
+          description: Задание отменено
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+  /discipline:
+    get:
+      operationId: listDiscipline
+      tags: [discipline]
+      summary: Записи дисциплины с учётом роли
+      parameters:
+        - name: memberId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: type
+          in: query
+          schema: { type: string, enum: [warning, reprimand] }
+        - name: status
+          in: query
+          schema: { type: string, enum: [active, revoked, converted] }
+      responses:
+        "200":
+          description: Записи дисциплины
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DisciplineRecord"
+    post:
+      operationId: createDisciplineRecord
+      tags: [discipline]
+      summary: Добавить запись о дисциплине
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DisciplineInput"
+      responses:
+        "201":
+          description: Запись добавлена
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisciplineRecord"
+        "200":
+          description: Результат уже был создан этим ключом запроса
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisciplineRecord"
+  /discipline/{id}/revoke:
+    post:
+      operationId: revokeDisciplineRecord
+      tags: [discipline]
+      summary: Снять активное взыскание с обязательной причиной
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DisciplineRevocationInput"
+      responses:
+        "200":
+          description: Взыскание снято, история сохранена
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisciplineRecord"
+  /audit-logs:
+    get:
+      operationId: listAuditLogs
+      tags: [audit]
+      summary: Прочитать неизменяемый журнал действий руководства
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [accounts, events, standards, tasks, discipline]
+        - name: actorId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: action
+          in: query
+          schema: { type: string, maxLength: 100 }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 100 }
+      responses:
+        "200":
+          description: События журнала действий, новые сначала
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AuditLog" }
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [storage]
+      summary: Получить временную ссылку для загрузки скриншота
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadUrlRequest"
+      responses:
+        "200":
+          description: Ссылка для прямой загрузки в файловое хранилище
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlResponse"
+        "400":
+          description: Неподдерживаемый файл
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: Персональные уведомления текущего пользователя
+      responses:
+        "200":
+          description: Уведомления
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Notification" }
+  /notifications/{id}/read:
+    patch:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Отметить уведомление прочитанным
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Уведомление отмечено прочитанным
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Notification" }
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Отметить все уведомления прочитанными
+      responses:
+        "200":
+          description: Уведомления отмечены прочитанными
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    OkResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+    SetupStatus:
+      type: object
+      required: [setupComplete]
+      properties:
+        setupComplete:
+          type: boolean
+    UserRole:
+      type: string
+      enum: [leader, admin, employee]
+    AccountStatus:
+      type: string
+      enum: [active, blocked]
+    SessionUser:
+      type: object
+      required: [id, nickname, role, rank, status, mustChangePassword]
+      properties:
+        id: { type: string, format: uuid }
+        nickname: { type: string }
+        role: { $ref: "#/components/schemas/UserRole" }
+        rank: { type: string }
+        status: { $ref: "#/components/schemas/AccountStatus" }
+        mustChangePassword: { type: boolean }
+    LoginInput:
+      type: object
+      required: [nickname, password]
+      properties:
+        nickname: { type: string, minLength: 3, maxLength: 32 }
+        password: { type: string, minLength: 1, maxLength: 128 }
+    ChangePasswordInput:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: { type: string, minLength: 1, maxLength: 128 }
+        newPassword: { type: string, minLength: 10, maxLength: 128 }
+    Dashboard:
+      type: object
+      required: [memberCount, activeMembers, upcomingEvents, openTasks, pendingStandards, pendingTaskReviews, overdueAssignments, unreadNotifications, recentEvents, recentTasks]
+      properties:
+        memberCount: { type: integer }
+        activeMembers: { type: integer }
+        upcomingEvents: { type: integer }
+        openTasks: { type: integer }
+        pendingStandards: { type: integer }
+        pendingTaskReviews: { type: integer }
+        overdueAssignments: { type: integer }
+        unreadNotifications: { type: integer }
+        recentEvents:
+          type: array
+          items: { $ref: "#/components/schemas/Event" }
+        recentTasks:
+          type: array
+          items: { $ref: "#/components/schemas/Task" }
+    Member:
+      type: object
+      required: [id, nickname, role, rank, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        nickname: { type: string }
+        role: { $ref: "#/components/schemas/UserRole" }
+        rank: { type: string }
+        status: { $ref: "#/components/schemas/AccountStatus" }
+        createdAt: { type: string, format: date-time }
+        lastLogin: { type: ["string", "null"], format: date-time }
+    MemberInput:
+      type: object
+      required: [nickname, rank, role]
+      properties:
+        nickname: { type: string, minLength: 3, maxLength: 32 }
+        rank: { type: string, minLength: 1, maxLength: 80 }
+        role:
+          type: string
+          enum: [admin, employee]
+    MemberCredentials:
+      type: object
+      required: [member, temporaryPassword]
+      properties:
+        member: { $ref: "#/components/schemas/Member" }
+        temporaryPassword:
+          type: string
+          description: Показывается однократно, хранится на сервере только в виде хеша
+    MemberUpdate:
+      type: object
+      properties:
+        rank: { type: string, minLength: 1, maxLength: 80 }
+        role:
+          type: string
+          enum: [admin, employee]
+        status:
+          $ref: "#/components/schemas/AccountStatus"
+    EventStatus:
+      type: string
+      enum: [planned, completed, cancelled]
+    Event:
+      type: object
+      required: [id, title, description, startsAt, location, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        startsAt: { type: string, format: date-time }
+        location: { type: string }
+        status: { $ref: "#/components/schemas/EventStatus" }
+        createdAt: { type: string, format: date-time }
+    EventInput:
+      type: object
+      required: [title, description, startsAt, location]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 160 }
+        description: { type: string, maxLength: 4000 }
+        startsAt: { type: string, format: date-time }
+        location: { type: string, maxLength: 240 }
+    EventUpdate:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 160 }
+        description: { type: string, maxLength: 4000 }
+        startsAt: { type: string, format: date-time }
+        location: { type: string, maxLength: 240 }
+        status: { $ref: "#/components/schemas/EventStatus" }
+    Standard:
+      type: object
+      required: [id, title, description, requirements, category, target, unit, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        requirements: { type: string }
+        category: { type: string }
+        target: { type: integer }
+        unit: { type: string }
+        createdAt: { type: string, format: date-time }
+    StandardInput:
+      type: object
+      required: [title, description, requirements, category, target, unit]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 160 }
+        description: { type: string, maxLength: 4000 }
+        requirements: { type: string, minLength: 1, maxLength: 6000 }
+        category: { type: string, minLength: 1, maxLength: 80 }
+        target: { type: integer, minimum: 1 }
+        unit: { type: string, minLength: 1, maxLength: 40 }
+    StandardUpdate:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 160 }
+        description: { type: string, maxLength: 4000 }
+        requirements: { type: string, minLength: 1, maxLength: 6000 }
+        category: { type: string, minLength: 1, maxLength: 80 }
+        target: { type: integer, minimum: 1 }
+        unit: { type: string, minLength: 1, maxLength: 40 }
+    StandardAssignmentStatus:
+      type: string
+      enum: [not_submitted, pending_review, approved, rejected, revision_required, overdue, cancelled]
+    StandardAssignment:
+      type: object
+      required: [id, standardId, assigneeId, assigneeNickname, assignedById, assignedByNickname, title, description, requirements, category, target, unit, dueAt, assignedAt, status, versionCount, latestVersion, latestComment, latestReviewReason, latestSubmittedAt]
+      properties:
+        id: { type: string, format: uuid }
+        standardId: { type: string, format: uuid }
+        assigneeId: { type: string, format: uuid }
+        assigneeNickname: { type: string }
+        assignedById: { type: string, format: uuid }
+        assignedByNickname: { type: string }
+        title: { type: string }
+        description: { type: string }
+        requirements: { type: string }
+        category: { type: string }
+        target: { type: integer }
+        unit: { type: string }
+        dueAt: { type: string, format: date-time }
+        assignedAt: { type: string, format: date-time }
+        status: { $ref: "#/components/schemas/StandardAssignmentStatus" }
+        versionCount: { type: integer }
+        latestVersion: { type: ["integer", "null"] }
+        latestComment: { type: ["string", "null"] }
+        latestReviewReason: { type: ["string", "null"] }
+        latestSubmittedAt: { type: ["string", "null"], format: date-time }
+    StandardAssignmentInput:
+      type: object
+      required: [standardId, assigneeId, dueAt]
+      properties:
+        standardId: { type: string, format: uuid }
+        assigneeId: { type: string, format: uuid }
+        dueAt: { type: string, format: date-time }
+    SubmissionStatus:
+      type: string
+      enum: [pending_review, approved, rejected, revision_required]
+    SubmissionFile:
+      type: object
+      required: [id, objectPath, originalName, contentType, size, verificationStatus]
+      properties:
+        id: { type: string, format: uuid }
+        objectPath: { type: string }
+        originalName: { type: string }
+        contentType: { type: string, enum: [image/jpeg, image/png, image/webp] }
+        size: { type: integer }
+        verificationStatus: { type: string, enum: [pending, verified, rejected] }
+    StandardSubmission:
+      type: object
+      required: [id, assignmentId, version, comment, status, decisionReason, submittedAt, reviewedAt, reviewerId, reviewerNickname, files]
+      properties:
+        id: { type: string, format: uuid }
+        assignmentId: { type: string, format: uuid }
+        version: { type: integer }
+        comment: { type: string }
+        status: { $ref: "#/components/schemas/SubmissionStatus" }
+        decisionReason: { type: ["string", "null"] }
+        submittedAt: { type: string, format: date-time }
+        reviewedAt: { type: ["string", "null"], format: date-time }
+        reviewerId: { type: ["string", "null"], format: uuid }
+        reviewerNickname: { type: ["string", "null"] }
+        files:
+          type: array
+          items: { $ref: "#/components/schemas/SubmissionFile" }
+    TaskSubmission:
+      type: object
+      required: [id, taskId, version, comment, status, decisionReason, submittedAt, reviewedAt, reviewerId, reviewerNickname, files]
+      properties:
+        id: { type: string, format: uuid }
+        taskId: { type: string, format: uuid }
+        version: { type: integer }
+        comment: { type: string }
+        status: { $ref: "#/components/schemas/SubmissionStatus" }
+        decisionReason: { type: ["string", "null"] }
+        submittedAt: { type: string, format: date-time }
+        reviewedAt: { type: ["string", "null"], format: date-time }
+        reviewerId: { type: ["string", "null"], format: uuid }
+        reviewerNickname: { type: ["string", "null"] }
+        files:
+          type: array
+          items: { $ref: "#/components/schemas/SubmissionFile" }
+    StandardSubmissionInput:
+      type: object
+      required: [comment, uploadIds]
+      properties:
+        comment: { type: string, minLength: 1, maxLength: 2000 }
+        uploadIds:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items: { type: string, format: uuid }
+    TaskSubmissionInput:
+      type: object
+      required: [comment, uploadIds]
+      properties:
+        comment: { type: string, maxLength: 2000 }
+        uploadIds:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items: { type: string, format: uuid }
+    StandardReviewInput:
+      type: object
+      required: [status, reason]
+      properties:
+        status:
+          type: string
+          enum: [approved, rejected, revision_required]
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+    TaskReviewInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [approved, rejected, revision_required]
+        reason: { type: string, maxLength: 2000 }
+    TaskCancelInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+    TaskStatus:
+      type: string
+      enum: [assigned, in_progress, pending_review, approved, rejected, revision_required, cancelled, overdue]
+    TaskPriority:
+      type: string
+      enum: [low, normal, high, urgent]
+    Task:
+      type: object
+      required: [id, title, description, reason, assigneeId, assigneeNickname, status, priority, issuedAt, dueAt, createdAt, versionCount, latestVersion, latestComment, latestReviewReason]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        reason: { type: string }
+        assigneeId: { type: ["string", "null"], format: uuid }
+        assigneeNickname: { type: ["string", "null"] }
+        status: { $ref: "#/components/schemas/TaskStatus" }
+        priority: { $ref: "#/components/schemas/TaskPriority" }
+        issuedAt: { type: string, format: date-time }
+        dueAt: { type: ["string", "null"], format: date-time }
+        evidencePath: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+        versionCount: { type: integer }
+        latestVersion: { type: ["integer", "null"] }
+        latestComment: { type: ["string", "null"] }
+        latestReviewReason: { type: ["string", "null"] }
+    TaskInput:
+      type: object
+      required: [title, description, reason, assigneeId, priority, dueAt]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 160 }
+        description: { type: string, maxLength: 4000 }
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+        assigneeId: { type: string, format: uuid }
+        priority: { $ref: "#/components/schemas/TaskPriority" }
+        dueAt: { type: string, format: date-time }
+    TaskUpdate:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 160 }
+        description: { type: string, maxLength: 4000 }
+        assigneeId: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/TaskStatus" }
+        priority: { $ref: "#/components/schemas/TaskPriority" }
+        dueAt: { type: string, format: date-time }
+        evidencePath: { type: ["string", "null"] }
+    DisciplineRecord:
+      type: object
+      required: [id, memberId, memberNickname, type, status, reason, points, evidencePath, issuedById, issuedByNickname, createdAt, revokedAt, revokedById, revokedByNickname, revocationReason, convertedAt, convertedById, convertedByNickname, conversionReason, convertedToId, maxLevelReachedAt]
+      properties:
+        id: { type: string, format: uuid }
+        memberId: { type: string, format: uuid }
+        memberNickname: { type: string }
+        type: { type: string, enum: [warning, reprimand] }
+        status: { type: string, enum: [active, revoked, converted] }
+        reason: { type: string }
+        points: { type: integer }
+        evidencePath: { type: ["string", "null"] }
+        issuedById: { type: string, format: uuid }
+        issuedByNickname: { type: string }
+        createdAt: { type: string, format: date-time }
+        revokedAt: { type: ["string", "null"], format: date-time }
+        revokedById: { type: ["string", "null"], format: uuid }
+        revokedByNickname: { type: ["string", "null"] }
+        revocationReason: { type: ["string", "null"] }
+        convertedAt: { type: ["string", "null"], format: date-time }
+        convertedById: { type: ["string", "null"], format: uuid }
+        convertedByNickname: { type: ["string", "null"] }
+        conversionReason: { type: ["string", "null"] }
+        convertedToId: { type: ["string", "null"], format: uuid }
+        maxLevelReachedAt: { type: ["string", "null"], format: date-time }
+    DisciplineInput:
+      type: object
+      required: [memberId, type, reason, requestId]
+      properties:
+        memberId: { type: string, format: uuid }
+        type: { type: string, enum: [warning, reprimand] }
+        reason: { type: string, minLength: 1, maxLength: 4000 }
+        requestId: { type: string, format: uuid, description: Stable idempotency key for safe retries }
+        evidencePath: { type: ["string", "null"] }
+    DisciplineRevocationInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 3, maxLength: 2000 }
+    AuditLog:
+      type: object
+      required: [id, actorId, actorNickname, category, action, entityType, entityId, entityLabel, targetMemberId, targetMemberNickname, reason, details, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        actorId: { type: string, format: uuid }
+        actorNickname: { type: string }
+        category: { type: string, enum: [accounts, events, standards, tasks, discipline] }
+        action: { type: string }
+        entityType: { type: string }
+        entityId: { type: string }
+        entityLabel: { type: string }
+        targetMemberId: { type: ["string", "null"], format: uuid }
+        targetMemberNickname: { type: ["string", "null"] }
+        reason: { type: ["string", "null"] }
+        details: { type: object, additionalProperties: true }
+        createdAt: { type: string, format: date-time }
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        size: { type: integer, minimum: 1, maximum: 10485760 }
+        contentType: { type: string, enum: [image/jpeg, image/png, image/webp] }
+    UploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath, uploadId]
+      properties:
+        uploadURL: { type: string, format: uri }
+        objectPath: { type: string }
+        uploadId: { type: string, format: uuid }
+    Notification:
+      type: object
+      required: [id, kind, title, message, relatedType, relatedId, readAt, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [standard_assigned, standard_submitted, standard_reviewed, task_assigned, task_submitted, task_reviewed, task_cancelled] }
+        title: { type: string }
+        message: { type: string }
+        relatedType: { type: ["string", "null"], enum: [standard_assignment, task, null] }
+        relatedId: { type: ["string", "null"], format: uuid }
+        readAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }

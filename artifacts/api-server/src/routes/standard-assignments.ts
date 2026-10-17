@@ -1,0 +1,583 @@
+import { and, count, desc, eq, inArray } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
+import { Router, type IRouter } from "express";
+import {
+  CreateStandardAssignmentBody,
+  CreateStandardAssignmentResponse,
+  ListStandardAssignmentsResponse,
+  ListStandardSubmissionsParams,
+  ListStandardSubmissionsResponseItem,
+  ListStandardSubmissionsResponse,
+  ReviewStandardSubmissionBody,
+  ReviewStandardSubmissionParams,
+  ReviewStandardSubmissionResponse,
+  SubmitStandardBody,
+  SubmitStandardParams,
+  SubmitStandardResponse,
+} from "@workspace/api-zod";
+import {
+  db,
+  membersTable,
+  notificationsTable,
+  standardAssignmentsTable,
+  standardSubmissionFilesTable,
+  standardSubmissionsTable,
+  standardsTable,
+  uploadsTable,
+} from "@workspace/db";
+import { requireManager, requireReadyAuth } from "../lib/auth";
+import { writeAudit } from "../lib/audit";
+import { ObjectStorageService } from "../lib/objectStorage";
+import { verifyStoredImage } from "../lib/uploadValidation";
+
+const router: IRouter = Router();
+const objectStorage = new ObjectStorageService();
+const assignmentIssuer = alias(membersTable, "standard_assignment_issuer");
+
+async function getSubmissionHistory(assignmentId: string) {
+  const submissions = await db
+    .select()
+    .from(standardSubmissionsTable)
+    .where(eq(standardSubmissionsTable.assignmentId, assignmentId))
+    .orderBy(standardSubmissionsTable.version);
+
+  if (submissions.length === 0) return [];
+  const submissionIds = submissions.map((submission) => submission.id);
+  const files = await db
+    .select({
+      submissionId: standardSubmissionFilesTable.submissionId,
+      id: uploadsTable.id,
+      objectPath: uploadsTable.objectPath,
+      originalName: uploadsTable.originalName,
+      contentType: uploadsTable.contentType,
+      size: uploadsTable.actualSize,
+      declaredSize: uploadsTable.size,
+      verificationStatus: uploadsTable.verificationStatus,
+    })
+    .from(standardSubmissionFilesTable)
+    .innerJoin(
+      uploadsTable,
+      eq(standardSubmissionFilesTable.uploadId, uploadsTable.id),
+    )
+    .where(inArray(standardSubmissionFilesTable.submissionId, submissionIds));
+  const filesBySubmission = new Map<string, typeof files>();
+  for (const file of files) {
+    const current = filesBySubmission.get(file.submissionId) ?? [];
+    current.push(file);
+    filesBySubmission.set(file.submissionId, current);
+  }
+
+  return submissions.map((submission) =>
+    ListStandardSubmissionsResponseItem.parse({
+      ...submission,
+      files: (filesBySubmission.get(submission.id) ?? []).map((file) => ({
+        id: file.id,
+        objectPath: file.objectPath,
+        originalName: file.originalName,
+        contentType: file.contentType,
+        size: file.size ?? file.declaredSize,
+        verificationStatus: file.verificationStatus,
+      })),
+    }),
+  );
+}
+
+router.get(
+  "/standard-assignments",
+  requireReadyAuth,
+  async (req, res): Promise<void> => {
+    const viewer = req.factionUser!;
+    const assignments = await db
+      .select({
+        id: standardAssignmentsTable.id,
+        standardId: standardAssignmentsTable.standardId,
+        assigneeId: standardAssignmentsTable.assigneeId,
+        assigneeNickname: membersTable.nickname,
+        assignedById: standardAssignmentsTable.assignedById,
+        assignedByNickname: assignmentIssuer.nickname,
+        title: standardsTable.title,
+        description: standardsTable.description,
+        requirements: standardsTable.requirements,
+        category: standardsTable.category,
+        target: standardsTable.target,
+        unit: standardsTable.unit,
+        dueAt: standardAssignmentsTable.dueAt,
+        assignedAt: standardAssignmentsTable.assignedAt,
+        status: standardAssignmentsTable.status,
+      })
+      .from(standardAssignmentsTable)
+      .innerJoin(
+        standardsTable,
+        eq(standardAssignmentsTable.standardId, standardsTable.id),
+      )
+      .innerJoin(
+        membersTable,
+        eq(standardAssignmentsTable.assigneeId, membersTable.id),
+      )
+      .innerJoin(
+        assignmentIssuer,
+        eq(standardAssignmentsTable.assignedById, assignmentIssuer.id),
+      )
+      .where(
+        viewer.role === "employee"
+          ? eq(standardAssignmentsTable.assigneeId, viewer.id)
+          : undefined,
+      )
+      .orderBy(desc(standardAssignmentsTable.assignedAt));
+
+    if (assignments.length === 0) {
+      res.json(ListStandardAssignmentsResponse.parse([]));
+      return;
+    }
+
+    const assignmentIds = assignments.map((assignment) => assignment.id);
+    const versions = await db
+      .select()
+      .from(standardSubmissionsTable)
+      .where(inArray(standardSubmissionsTable.assignmentId, assignmentIds))
+      .orderBy(desc(standardSubmissionsTable.version));
+    const versionsByAssignment = new Map<
+      string,
+      (typeof versions)[number][]
+    >();
+    for (const version of versions) {
+      const current = versionsByAssignment.get(version.assignmentId) ?? [];
+      current.push(version);
+      versionsByAssignment.set(version.assignmentId, current);
+    }
+
+    const now = Date.now();
+    const response = assignments.map((assignment) => {
+      const history = versionsByAssignment.get(assignment.id) ?? [];
+      const latest = history[0];
+      const status =
+        assignment.status === "not_submitted" &&
+        assignment.dueAt.getTime() < now
+          ? "overdue"
+          : assignment.status;
+      return {
+        ...assignment,
+        status,
+        versionCount: history.length,
+        latestVersion: latest?.version ?? null,
+        latestComment: latest?.comment ?? null,
+        latestReviewReason: latest?.decisionReason ?? null,
+        latestSubmittedAt: latest?.submittedAt ?? null,
+      };
+    });
+    res.json(ListStandardAssignmentsResponse.parse(response));
+  },
+);
+
+router.post(
+  "/standard-assignments",
+  requireReadyAuth,
+  async (req, res): Promise<void> => {
+    if (!requireManager(req, res)) return;
+    const parsed = CreateStandardAssignmentBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Проверьте норматив, сотрудника и срок." });
+      return;
+    }
+    const dueAt = parsed.data.dueAt;
+    if (!(dueAt instanceof Date) || dueAt.getTime() <= Date.now()) {
+      res.status(400).json({ error: "Срок сдачи должен быть в будущем." });
+      return;
+    }
+
+    const [standard] = await db
+      .select({ id: standardsTable.id, title: standardsTable.title })
+      .from(standardsTable)
+      .where(eq(standardsTable.id, parsed.data.standardId))
+      .limit(1);
+    const [assignee] = await db
+      .select({
+        id: membersTable.id,
+        nickname: membersTable.nickname,
+        role: membersTable.role,
+        status: membersTable.status,
+      })
+      .from(membersTable)
+      .where(eq(membersTable.id, parsed.data.assigneeId))
+      .limit(1);
+    if (!standard || !assignee || assignee.role !== "employee" || assignee.status !== "active") {
+      res.status(400).json({ error: "Норматив или активный сотрудник не найдены." });
+      return;
+    }
+
+    const [assignment] = await db.transaction(async (tx) => {
+      const created = await tx
+        .insert(standardAssignmentsTable)
+        .values({
+          standardId: standard.id,
+          assigneeId: assignee.id,
+          assignedById: req.factionUser!.id,
+          dueAt,
+          status: "not_submitted",
+        })
+        .returning();
+      await tx.insert(notificationsTable).values({
+        recipientId: assignee.id,
+        kind: "standard_assigned",
+        title: "Назначен новый норматив",
+        message: `${standard.title} — срок ${dueAt.toLocaleString("ru-RU")}.`,
+        relatedType: "standard_assignment",
+        relatedId: created[0]!.id,
+      });
+      await writeAudit(tx, {
+        actorId: req.factionUser!.id,
+        actorNickname: req.factionUser!.nickname,
+        category: "standards",
+        action: "standard.assignment_created",
+        entityType: "standard_assignment",
+        entityId: created[0]!.id,
+        entityLabel: `${standard.title} → ${assignee.nickname}`,
+        targetMemberId: assignee.id,
+        targetMemberNickname: assignee.nickname,
+        details: { standardId: standard.id, dueAt },
+      });
+      return created;
+    });
+
+    const [row] = await db
+      .select({
+        id: standardAssignmentsTable.id,
+        standardId: standardAssignmentsTable.standardId,
+        assigneeId: standardAssignmentsTable.assigneeId,
+        assigneeNickname: membersTable.nickname,
+        assignedById: standardAssignmentsTable.assignedById,
+        assignedByNickname: assignmentIssuer.nickname,
+        title: standardsTable.title,
+        description: standardsTable.description,
+        requirements: standardsTable.requirements,
+        category: standardsTable.category,
+        target: standardsTable.target,
+        unit: standardsTable.unit,
+        dueAt: standardAssignmentsTable.dueAt,
+        assignedAt: standardAssignmentsTable.assignedAt,
+        status: standardAssignmentsTable.status,
+      })
+      .from(standardAssignmentsTable)
+      .innerJoin(standardsTable, eq(standardAssignmentsTable.standardId, standardsTable.id))
+      .innerJoin(membersTable, eq(standardAssignmentsTable.assigneeId, membersTable.id))
+      .innerJoin(
+        assignmentIssuer,
+        eq(standardAssignmentsTable.assignedById, assignmentIssuer.id),
+      )
+      .where(eq(standardAssignmentsTable.id, assignment!.id))
+      .limit(1);
+    res.status(201).json(
+      CreateStandardAssignmentResponse.parse({
+        ...row,
+        versionCount: 0,
+        latestVersion: null,
+        latestComment: null,
+        latestReviewReason: null,
+        latestSubmittedAt: null,
+      }),
+    );
+  },
+);
+
+router.get(
+  "/standard-assignments/:id/submissions",
+  requireReadyAuth,
+  async (req, res): Promise<void> => {
+    const params = ListStandardSubmissionsParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Некорректный норматив." });
+      return;
+    }
+    const [assignment] = await db
+      .select({
+        id: standardAssignmentsTable.id,
+        assigneeId: standardAssignmentsTable.assigneeId,
+      })
+      .from(standardAssignmentsTable)
+      .where(eq(standardAssignmentsTable.id, params.data.id))
+      .limit(1);
+    if (
+      !assignment ||
+      (req.factionUser!.role === "employee" &&
+        assignment.assigneeId !== req.factionUser!.id)
+    ) {
+      res.status(404).json({ error: "Назначенный норматив не найден." });
+      return;
+    }
+    res.json(
+      ListStandardSubmissionsResponse.parse(
+        await getSubmissionHistory(assignment.id),
+      ),
+    );
+  },
+);
+
+router.post(
+  "/standard-assignments/:id/submissions",
+  requireReadyAuth,
+  async (req, res): Promise<void> => {
+    const params = SubmitStandardParams.safeParse(req.params);
+    const body = SubmitStandardBody.safeParse(req.body);
+    if (!params.success || !body.success || !body.data.comment.trim()) {
+      res.status(400).json({ error: "Добавьте от 1 до 8 допустимых скриншотов." });
+      return;
+    }
+    const viewer = req.factionUser!;
+    if (viewer.role !== "employee") {
+      res.status(403).json({ error: "Сдавать назначенный норматив может только сотрудник." });
+      return;
+    }
+    const [assignment] = await db
+      .select({
+        id: standardAssignmentsTable.id,
+        assigneeId: standardAssignmentsTable.assigneeId,
+        status: standardAssignmentsTable.status,
+        title: standardsTable.title,
+      })
+      .from(standardAssignmentsTable)
+      .innerJoin(
+        standardsTable,
+        eq(standardAssignmentsTable.standardId, standardsTable.id),
+      )
+      .where(eq(standardAssignmentsTable.id, params.data.id))
+      .limit(1);
+    if (!assignment || assignment.assigneeId !== viewer.id) {
+      res.status(404).json({ error: "Назначенный норматив не найден." });
+      return;
+    }
+    if (!["not_submitted", "rejected", "revision_required"].includes(assignment.status)) {
+      res.status(409).json({ error: "Сейчас нельзя отправить новую версию этого норматива." });
+      return;
+    }
+    const uploadIds = body.data.uploadIds;
+    if (new Set(uploadIds).size !== uploadIds.length) {
+      res.status(400).json({ error: "Один и тот же файл нельзя прикрепить несколько раз." });
+      return;
+    }
+    const uploads = await db
+      .select()
+      .from(uploadsTable)
+      .where(inArray(uploadsTable.id, uploadIds));
+    if (
+      uploads.length !== uploadIds.length ||
+      uploads.some((upload) => upload.memberId !== viewer.id)
+    ) {
+      res.status(400).json({ error: "Один или несколько файлов недоступны." });
+      return;
+    }
+
+    for (const upload of uploads) {
+      try {
+        const file = await objectStorage.getObjectEntityFile(upload.objectPath);
+        const verification = await verifyStoredImage(upload, file);
+        if ("error" in verification) {
+          await db
+            .update(uploadsTable)
+            .set({
+              verificationStatus: "rejected",
+              verificationMessage: verification.error,
+              verifiedAt: new Date(),
+            })
+            .where(eq(uploadsTable.id, upload.id));
+          res.status(422).json({ error: verification.error });
+          return;
+        }
+        await db
+          .update(uploadsTable)
+          .set({
+            actualSize: verification.verified.actualSize,
+            detectedContentType: verification.verified.detectedContentType,
+            verificationStatus: "verified",
+            verificationMessage: null,
+            verifiedAt: new Date(),
+          })
+          .where(eq(uploadsTable.id, upload.id));
+      } catch (error) {
+        req.log.warn({ err: error, uploadId: upload.id }, "Screenshot verification failed");
+        await db
+          .update(uploadsTable)
+          .set({
+            verificationStatus: "rejected",
+            verificationMessage: "Файл не найден или не прошёл проверку.",
+            verifiedAt: new Date(),
+          })
+          .where(eq(uploadsTable.id, upload.id));
+        res.status(422).json({ error: "Файл не найден или не прошёл проверку." });
+        return;
+      }
+    }
+
+    const [submission] = await db.transaction(async (tx) => {
+      const [versionCount] = await tx
+        .select({ value: count() })
+        .from(standardSubmissionsTable)
+        .where(eq(standardSubmissionsTable.assignmentId, assignment.id));
+      const created = await tx
+        .insert(standardSubmissionsTable)
+        .values({
+          assignmentId: assignment.id,
+          version: Number(versionCount?.value ?? 0) + 1,
+          comment: body.data.comment.trim(),
+          status: "pending_review",
+        })
+        .returning();
+      await tx.insert(standardSubmissionFilesTable).values(
+        uploadIds.map((uploadId) => ({
+          submissionId: created[0]!.id,
+          uploadId,
+        })),
+      );
+      await tx
+        .update(standardAssignmentsTable)
+        .set({ status: "pending_review" })
+        .where(eq(standardAssignmentsTable.id, assignment.id));
+
+      const managers = await tx
+        .select({ id: membersTable.id })
+        .from(membersTable)
+        .where(
+          and(
+            inArray(membersTable.role, ["leader", "admin"]),
+            eq(membersTable.status, "active"),
+          ),
+        );
+      if (managers.length > 0) {
+        await tx.insert(notificationsTable).values(
+          managers.map((manager) => ({
+            recipientId: manager.id,
+            kind: "standard_submitted",
+            title: "Норматив ожидает проверки",
+            message: `${viewer.nickname} отправил норматив «${assignment.title}», версия ${created[0]!.version}.`,
+            relatedType: "standard_assignment",
+            relatedId: assignment.id,
+          })),
+        );
+      }
+      await writeAudit(tx, {
+        actorId: viewer.id,
+        actorNickname: viewer.nickname,
+        category: "standards",
+        action: "standard.submitted",
+        entityType: "standard_assignment",
+        entityId: assignment.id,
+        entityLabel: `Сдан норматив: ${assignment.title}`,
+        targetMemberId: viewer.id,
+        targetMemberNickname: viewer.nickname,
+        details: { submissionId: created[0]!.id, version: created[0]!.version },
+      });
+      return created;
+    });
+
+    res.status(201).json(
+      SubmitStandardResponse.parse({
+        ...submission,
+        files: uploads.map((upload) => ({
+          id: upload.id,
+          objectPath: upload.objectPath,
+          originalName: upload.originalName,
+          contentType: upload.contentType,
+          size: upload.size,
+          verificationStatus: "verified",
+        })),
+      }),
+    );
+  },
+);
+
+router.patch(
+  "/standard-submissions/:id/review",
+  requireReadyAuth,
+  async (req, res): Promise<void> => {
+    if (!requireManager(req, res)) return;
+    const params = ReviewStandardSubmissionParams.safeParse(req.params);
+    const body = ReviewStandardSubmissionBody.safeParse(req.body);
+    if (!params.success || !body.success || !body.data.reason.trim()) {
+      res.status(400).json({ error: "Для решения по нормативу обязательно укажите причину." });
+      return;
+    }
+
+    const result = await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({
+          submission: standardSubmissionsTable,
+          assignment: standardAssignmentsTable,
+          assigneeNickname: membersTable.nickname,
+        })
+        .from(standardSubmissionsTable)
+        .innerJoin(
+          standardAssignmentsTable,
+          eq(standardSubmissionsTable.assignmentId, standardAssignmentsTable.id),
+        )
+        .innerJoin(
+          membersTable,
+          eq(standardAssignmentsTable.assigneeId, membersTable.id),
+        )
+        .where(eq(standardSubmissionsTable.id, params.data.id))
+        .limit(1);
+      if (!current || current.submission.status !== "pending_review") return null;
+
+      const [reviewed] = await tx
+        .update(standardSubmissionsTable)
+        .set({
+          status: body.data.status,
+          decisionReason: body.data.reason.trim(),
+          reviewedAt: new Date(),
+          reviewerId: req.factionUser!.id,
+          reviewerNickname: req.factionUser!.nickname,
+        })
+        .where(
+          and(
+            eq(standardSubmissionsTable.id, current.submission.id),
+            eq(standardSubmissionsTable.status, "pending_review"),
+          ),
+        )
+        .returning();
+      if (!reviewed) return null;
+
+      await tx
+        .update(standardAssignmentsTable)
+        .set({ status: body.data.status })
+        .where(eq(standardAssignmentsTable.id, current.assignment.id));
+      await tx.insert(notificationsTable).values({
+        recipientId: current.assignment.assigneeId,
+        kind: "standard_reviewed",
+        title: "Есть результат проверки норматива",
+        message: `${body.data.status === "approved" ? "Норматив одобрен" : body.data.status === "rejected" ? "Норматив отклонён" : "Норматив возвращён на исправление"}: ${body.data.reason.trim()}`,
+        relatedType: "standard_assignment",
+        relatedId: current.assignment.id,
+      });
+      await writeAudit(tx, {
+        actorId: req.factionUser!.id,
+        actorNickname: req.factionUser!.nickname,
+        category: "standards",
+        action: "standard.reviewed",
+        entityType: "standard_submission",
+        entityId: reviewed.id,
+        entityLabel: `Проверена сдача норматива · ${body.data.status}`,
+        targetMemberId: current.assignment.assigneeId,
+        targetMemberNickname: current.assigneeNickname,
+        reason: body.data.reason.trim(),
+        details: {
+          assignmentId: current.assignment.id,
+          status: body.data.status,
+          version: reviewed.version,
+        },
+      });
+      return reviewed;
+    });
+    if (!result) {
+      res.status(404).json({ error: "Отправленная версия не найдена или уже проверена." });
+      return;
+    }
+    res.json(
+      ReviewStandardSubmissionResponse.parse({
+        ...result,
+        files: await getSubmissionHistory(result.assignmentId).then(
+          (history) => history.find((item) => item.id === result.id)?.files ?? [],
+        ),
+      }),
+    );
+  },
+);
+
+export default router;

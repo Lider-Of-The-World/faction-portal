@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: faction-control-portal
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: pnpm install --frozen-lockfile --prod=false && pnpm run build
+    startCommand: pnpm --filter @workspace/db run migrate && pnpm --filter @workspace/api-server run start
+    healthCheckPath: /ready
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: OBJECT_STORAGE_PROVIDER
+        value: dropbox
+      - key: DROPBOX_ROOT_PATH
+        value: /FactionControl/screenshots
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: CRON_SECRET
+        generateValue: true
+      - key: DROPBOX_APP_KEY
+        sync: false
+      - key: DROPBOX_APP_SECRET
+        sync: false
+      - key: DROPBOX_REFRESH_TOKEN
+        sync: false
