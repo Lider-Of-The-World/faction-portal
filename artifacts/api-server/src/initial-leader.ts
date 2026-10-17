@@ -3,7 +3,7 @@ import { db, membersTable } from "@workspace/db";
 import { hashPassword, normalizeNickname } from "./lib/auth";
 import { writeAudit } from "./lib/audit";
 
-export const INITIAL_LEADER_NICKNAME = "Winston_Goodmam";
+export const INITIAL_LEADER_NICKNAME = "Winston_Goodman";
 export const INITIAL_LEADER_PASSWORD = "1234";
 
 /**

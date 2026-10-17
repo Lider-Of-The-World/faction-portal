@@ -14,12 +14,6 @@ export interface StoredImageFile {
   createReadStream(options?: { start?: number; end?: number }): NodeJS.ReadableStream;
 }
 
-interface ImageHeaderStream extends NodeJS.ReadableStream {
-  on(event: "data", listener: (chunk: Buffer | Uint8Array) => void): this;
-  on(event: "error", listener: (error: Error) => void): this;
-  on(event: "end", listener: () => void): this;
-}
-
 export type VerifiedImage = {
   actualSize: number;
   detectedContentType: "image/jpeg" | "image/png" | "image/webp";
@@ -81,7 +75,7 @@ function detectImageType(header: Buffer): VerifiedImage["detectedContentType"] |
 function readHeader(file: StoredImageFile): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    const stream = file.createReadStream({ start: 0, end: 15 }) as ImageHeaderStream;
+    const stream = file.createReadStream({ start: 0, end: 15 }) as NodeJS.ReadableStream;
     stream.on("data", (chunk: Buffer | Uint8Array) => {
       chunks.push(Buffer.from(chunk));
     });
