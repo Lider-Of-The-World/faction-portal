@@ -2,10 +2,36 @@ import { lt } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import { authSessionsTable, db, systemJobStateTable } from "@workspace/db";
 import { allowCronRequestFromIp, constantTimeSecretMatch } from "../lib/cron-security";
+import { runDailyStandardCycle } from "../lib/daily-standards";
 
 const router: IRouter = Router();
 const JOB_NAME = "external-maintenance";
 const DATABASE_RATE_LIMIT_MS = 60_000;
+
+router.get("/cron/daily-standards", async (req, res): Promise<void> => {
+  if (!allowCronRequestFromIp(req.ip || "unknown")) {
+    res.status(429).json({ error: "Слишком много запросов." });
+    return;
+  }
+
+  const expectedSecret = process.env.CRON_SECRET;
+  const suppliedSecret = req.get("x-cron-secret");
+  if (
+    !expectedSecret ||
+    !constantTimeSecretMatch(expectedSecret, suppliedSecret)
+  ) {
+    res.status(404).json({ error: "Маршрут не найден." });
+    return;
+  }
+
+  try {
+    const result = await runDailyStandardCycle(new Date());
+    res.status(200).json({ ok: true, ...result });
+  } catch (error) {
+    req.log.error({ err: error }, "Daily standard rollover failed");
+    res.status(503).json({ error: "Служба временно недоступна." });
+  }
+});
 
 router.get("/cron/maintenance", async (req, res): Promise<void> => {
   if (!allowCronRequestFromIp(req.ip || "unknown")) {

@@ -14,5 +14,6 @@ export interface Standard {
   category: string;
   target: number;
   unit: string;
+  dailyEnabled: boolean;
   createdAt: Date;
 }

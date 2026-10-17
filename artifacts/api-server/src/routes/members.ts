@@ -137,7 +137,13 @@ router.patch(
     }
 
     const [target] = await db
-      .select()
+      .select({
+        id: membersTable.id,
+        nickname: membersTable.nickname,
+        role: membersTable.role,
+        rank: membersTable.rank,
+        status: membersTable.status,
+      })
       .from(membersTable)
       .where(eq(membersTable.id, params.data.id))
       .limit(1);

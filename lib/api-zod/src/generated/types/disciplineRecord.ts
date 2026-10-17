@@ -5,27 +5,40 @@
  * API для управления игровой фракцией
  * OpenAPI spec version: 0.1.0
  */
+import type { DisciplineRecordStatus } from './disciplineRecordStatus';
+import type { DisciplineRecordType } from './disciplineRecordType';
 
 export interface DisciplineRecord {
   id: string;
   memberId: string;
   memberNickname: string;
-  type: 'warning' | 'reprimand';
-  status: 'active' | 'revoked' | 'converted';
+  type: DisciplineRecordType;
+  status: DisciplineRecordStatus;
   reason: string;
   points: number;
+  /** @nullable */
   evidencePath: string | null;
   issuedById: string;
   issuedByNickname: string;
   createdAt: Date;
+  /** @nullable */
   revokedAt: Date | null;
+  /** @nullable */
   revokedById: string | null;
+  /** @nullable */
   revokedByNickname: string | null;
+  /** @nullable */
   revocationReason: string | null;
+  /** @nullable */
   convertedAt: Date | null;
+  /** @nullable */
   convertedById: string | null;
+  /** @nullable */
   convertedByNickname: string | null;
+  /** @nullable */
   conversionReason: string | null;
+  /** @nullable */
   convertedToId: string | null;
+  /** @nullable */
   maxLevelReachedAt: Date | null;
 }

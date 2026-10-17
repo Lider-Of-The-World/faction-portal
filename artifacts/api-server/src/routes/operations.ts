@@ -1,4 +1,4 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import {
   CreateEventBody,
@@ -179,6 +179,12 @@ router.post("/standards", requireReadyAuth, async (req, res): Promise<void> => {
     return;
   }
   const [standard] = await db.transaction(async (tx) => {
+    if (parsed.data.dailyEnabled) {
+      await tx
+        .update(standardsTable)
+        .set({ dailyEnabled: false })
+        .where(eq(standardsTable.dailyEnabled, true));
+    }
     const created = await tx
       .insert(standardsTable)
       .values({ ...parsed.data, createdById: req.factionUser!.id })
@@ -198,6 +204,7 @@ router.post("/standards", requireReadyAuth, async (req, res): Promise<void> => {
         category: row.category,
         target: row.target,
         unit: row.unit,
+        dailyEnabled: row.dailyEnabled,
       },
     });
     return created;
@@ -226,6 +233,17 @@ router.patch(
         .where(eq(standardsTable.id, params.data.id))
         .limit(1);
       if (!current) return undefined;
+      if (body.data.dailyEnabled) {
+        await tx
+          .update(standardsTable)
+          .set({ dailyEnabled: false })
+          .where(
+            and(
+              eq(standardsTable.dailyEnabled, true),
+              ne(standardsTable.id, params.data.id),
+            ),
+          );
+      }
       const [updated] = await tx
         .update(standardsTable)
         .set(body.data)
@@ -248,6 +266,7 @@ router.patch(
             category: current.category,
             target: current.target,
             unit: current.unit,
+            dailyEnabled: current.dailyEnabled,
           },
           after: {
             title: updated.title,
@@ -256,6 +275,7 @@ router.patch(
             category: updated.category,
             target: updated.target,
             unit: updated.unit,
+            dailyEnabled: updated.dailyEnabled,
           },
         },
       });
