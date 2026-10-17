@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import {
   CreateMemberBody,
@@ -39,7 +39,10 @@ router.get("/members", requireReadyAuth, async (req, res): Promise<void> => {
     .select()
     .from(membersTable)
     .where(
-      viewer.role === "employee" ? eq(membersTable.id, viewer.id) : undefined,
+      and(
+        ne(membersTable.status, "removed"),
+        viewer.role === "employee" ? eq(membersTable.id, viewer.id) : undefined,
+      ),
     )
     .orderBy(desc(membersTable.createdAt));
   res.json(ListMembersResponse.parse(rows.map(toPublicMember)));
@@ -207,6 +210,82 @@ router.patch(
       return;
     }
     res.json(UpdateMemberResponse.parse(toPublicMember(member)));
+  },
+);
+
+router.delete(
+  "/members/:id",
+  requireReadyAuth,
+  async (req, res): Promise<void> => {
+    const viewer = req.factionUser!;
+    if (!requireManager(req, res)) return;
+
+    const params = UpdateMemberParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Некорректный идентификатор сотрудника." });
+      return;
+    }
+
+    const [target] = await db
+      .select({
+        id: membersTable.id,
+        nickname: membersTable.nickname,
+        role: membersTable.role,
+        status: membersTable.status,
+      })
+      .from(membersTable)
+      .where(eq(membersTable.id, params.data.id))
+      .limit(1);
+    if (!target || target.status === "removed") {
+      res.status(404).json({ error: "Сотрудник не найден в составе." });
+      return;
+    }
+    if (target.role !== "employee") {
+      res.status(403).json({ error: "Удалять из состава можно только сотрудников." });
+      return;
+    }
+
+    const removed = await db.transaction(async (tx) => {
+      const [updatedMember] = await tx
+        .update(membersTable)
+        .set({ status: "removed" })
+        .where(
+          and(
+            eq(membersTable.id, target.id),
+            eq(membersTable.role, "employee"),
+            ne(membersTable.status, "removed"),
+          ),
+        )
+        .returning();
+      if (!updatedMember) return false;
+
+      await tx
+        .delete(authSessionsTable)
+        .where(eq(authSessionsTable.memberId, updatedMember.id));
+      await writeAudit(tx, {
+        actorId: viewer.id,
+        actorNickname: viewer.nickname,
+        category: "accounts",
+        action: "account.removed",
+        entityType: "member",
+        entityId: updatedMember.id,
+        entityLabel: `Исключён из состава: ${updatedMember.nickname}`,
+        targetMemberId: updatedMember.id,
+        targetMemberNickname: updatedMember.nickname,
+        details: {
+          before: { role: target.role, status: target.status },
+          after: { role: updatedMember.role, status: updatedMember.status },
+          historyPreserved: true,
+        },
+      });
+      return true;
+    });
+
+    if (!removed) {
+      res.status(404).json({ error: "Сотрудник не найден в составе." });
+      return;
+    }
+    res.json({ ok: true });
   },
 );
 

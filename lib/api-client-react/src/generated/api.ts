@@ -896,6 +896,58 @@ export const useUpdateMember = <TError = ErrorType<ErrorEnvelope>,
       return useMutation(getUpdateMemberMutationOptions(options));
     }
 
+export const getDeleteMemberUrl = (id: string,) => {
+  return `/api/members/${id}`
+}
+
+/**
+ * @summary Исключить сотрудника из состава без удаления истории
+ */
+export const deleteMember = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<OkResponse> => {
+  return customFetch<OkResponse>(getDeleteMemberUrl(id), {
+    ...options,
+    method: 'DELETE'
+  }
+);}
+
+export const getDeleteMemberMutationKey = () => ['deleteMember'] as const;
+
+export const getDeleteMemberMutationOptions = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMember>>, TError,DeleteMemberMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMember>>, TError,DeleteMemberMutationVariables, TContext> => {
+
+const mutationKey = getDeleteMemberMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMember>>, DeleteMemberMutationVariables> = (props) => {
+          const {id} = props ?? {};
+          return  deleteMember(id,requestOptions)
+        }
+
+  return  { mutationFn, ...mutationOptions }}
+
+export type DeleteMemberMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMember>>>
+export type DeleteMemberMutationError = ErrorType<ErrorEnvelope>
+export type DeleteMemberMutationVariables = {id: string}
+
+/**
+ * @summary Исключить сотрудника из состава без удаления истории
+ */
+export const useDeleteMember = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMember>>, TError,DeleteMemberMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteMember>>,
+        TError,
+        DeleteMemberMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteMemberMutationOptions(options));
+    }
+
 export const getListEventsUrl = () => {
 
 

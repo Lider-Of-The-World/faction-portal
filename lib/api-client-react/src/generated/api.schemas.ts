@@ -36,6 +36,7 @@ export type AccountStatus = typeof AccountStatus[keyof typeof AccountStatus];
 export const AccountStatus = {
   active: 'active',
   blocked: 'blocked',
+  removed: 'removed',
 } as const;
 
 export interface SessionUser {
@@ -202,6 +203,14 @@ export const MemberUpdateRole = {
   employee: 'employee',
 } as const;
 
+export type MemberUpdateStatus = typeof MemberUpdateStatus[keyof typeof MemberUpdateStatus];
+
+
+export const MemberUpdateStatus = {
+  active: 'active',
+  blocked: 'blocked',
+} as const;
+
 export interface MemberUpdate {
   /**
      * @minLength 1
@@ -209,7 +218,7 @@ export interface MemberUpdate {
      */
   rank?: string;
   role?: MemberUpdateRole;
-  status?: AccountStatus;
+  status?: MemberUpdateStatus;
 }
 
 export interface EventInput {

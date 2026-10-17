@@ -5,8 +5,8 @@
  * API для управления игровой фракцией
  * OpenAPI spec version: 0.1.0
  */
-import type { AccountStatus } from './accountStatus';
 import type { MemberUpdateRole } from './memberUpdateRole';
+import type { MemberUpdateStatus } from './memberUpdateStatus';
 
 export interface MemberUpdate {
   /**
@@ -15,5 +15,5 @@ export interface MemberUpdate {
      */
   rank?: string;
   role?: MemberUpdateRole;
-  status?: AccountStatus;
+  status?: MemberUpdateStatus;
 }

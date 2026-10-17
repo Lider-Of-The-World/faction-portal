@@ -447,6 +447,7 @@ a { color: inherit; text-decoration: none; }
 .icon-button { display: inline-grid; place-items: center; flex: none; width: 33px; height: 33px; color: #858990; background: transparent; border: 1px solid transparent; border-radius: 4px; transition: all .18s ease; }
 .icon-button:hover { color: #f0efec; background: #25272c; border-color: #393c42; }
 .danger-icon:hover { color: #ed756c; background: rgba(212,60,53,.11); border-color: rgba(212,60,53,.28); }
+.member-actions { display: flex; align-items: center; gap: 2px; }
 .logout-button { width: 29px; height: 29px; }
 .password-alert { display: flex; align-items: center; gap: 10px; margin: 0 38px; padding: 11px 15px; color: #e6b5a8; background: #2a1c1b; border: 1px solid #56312e; border-radius: 4px; font-size: 11px; }
 .password-alert > svg { color: #e4776d; }

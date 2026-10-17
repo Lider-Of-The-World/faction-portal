@@ -12,4 +12,5 @@ export type AccountStatus = typeof AccountStatus[keyof typeof AccountStatus];
 export const AccountStatus = {
   active: 'active',
   blocked: 'blocked',
+  removed: 'removed',
 } as const;
