@@ -494,12 +494,30 @@ router.post(
       return;
     }
     if (!["assigned", "in_progress", "rejected", "revision_required"].includes(task.status)) {
-      res.status(409).json({ error: "Сейчас нельзя отправить новую версию этого задания." });
+      res.status(409).json({ error: "Отчёт уже отправлен или сейчас нельзя его отправить." });
       return;
     }
     if (!(await verifyUploads(body.data.uploadIds, viewer.id, req, res))) return;
 
-    const [submission] = await db.transaction(async (tx) => {
+    const submission = await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT id FROM faction_tasks WHERE id = ${task.id} FOR UPDATE`,
+      );
+      const [lockedTask] = await tx
+        .select({ status: tasksTable.status, assigneeId: tasksTable.assigneeId })
+        .from(tasksTable)
+        .where(eq(tasksTable.id, task.id))
+        .limit(1);
+      if (
+        !lockedTask ||
+        lockedTask.assigneeId !== viewer.id ||
+        !["assigned", "in_progress", "rejected", "revision_required"].includes(
+          lockedTask.status,
+        )
+      ) {
+        return null;
+      }
+
       const [versionCount] = await tx
         .select({ value: count() })
         .from(taskSubmissionsTable)
@@ -538,7 +556,7 @@ router.post(
             recipientId: manager.id,
             kind: "task_submitted",
             title: "Задание ожидает проверки",
-            message: `${viewer.nickname} отправил «${task.title}», версия ${created[0]!.version}.`,
+            message: `${viewer.nickname} отправил отчёт по заданию «${task.title}».`,
             relatedType: "task",
             relatedId: task.id,
           })),
@@ -556,8 +574,12 @@ router.post(
         targetMemberNickname: viewer.nickname,
         details: { taskId: task.id, version: created[0]!.version },
       });
-      return created;
+      return created[0]!;
     });
+    if (!submission) {
+      res.status(409).json({ error: "Отчёт уже отправлен или сейчас нельзя его отправить." });
+      return;
+    }
     const uploads = await db
       .select()
       .from(uploadsTable)
@@ -664,7 +686,7 @@ router.patch(
       return reviewed;
     });
     if (!updated) {
-      res.status(404).json({ error: "Отправленная версия не найдена или уже проверена." });
+      res.status(404).json({ error: "Отчёт не найден или уже проверен." });
       return;
     }
     res.json(
