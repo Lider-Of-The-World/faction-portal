@@ -1,7 +1,6 @@
 import type { uploadsTable } from "@workspace/db";
 
-export const MAX_SCREENSHOT_BYTES = 10 * 1024 * 1024;
-export const MAX_SCREENSHOTS_PER_SUBMISSION = 8;
+export const MAX_SCREENSHOT_BYTES = 25 * 1024 * 1024;
 
 const supportedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 
@@ -40,7 +39,7 @@ export function validateDeclaredImage(
     return "Тип файла не совпадает с его расширением.";
   }
   if (!Number.isInteger(size) || size < 1 || size > MAX_SCREENSHOT_BYTES) {
-    return "Размер каждого изображения не должен превышать 10 МБ.";
+    return "Размер каждого изображения не должен превышать 25 МБ.";
   }
   return null;
 }

@@ -135,7 +135,7 @@ app.use(
       return;
     }
     if (errorType === "entity.too.large") {
-      res.status(413).json({ error: "Размер загружаемого файла превышает 10 МБ." });
+      res.status(413).json({ error: "Размер загружаемого файла превышает 25 МБ." });
       return;
     }
     req.log?.error({ err: error }, "Unhandled API error");

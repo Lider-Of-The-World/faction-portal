@@ -29,6 +29,7 @@ export const UserRole = {
   admin: 'admin',
   employee: 'employee',
 } as const;
+
 export type AccountStatus = typeof AccountStatus[keyof typeof AccountStatus];
 
 
@@ -37,6 +38,7 @@ export const AccountStatus = {
   blocked: 'blocked',
   removed: 'removed',
 } as const;
+
 export interface SessionUser {
   id: string;
   nickname: string;
@@ -433,20 +435,14 @@ export interface StandardSubmissionInput {
      * @maxLength 2000
      */
   comment: string;
-  /**
-     * @minItems 1
-     * @maxItems 8
-     */
+  /** @minItems 1 */
   uploadIds: string[];
 }
 
 export interface TaskSubmissionInput {
   /** @maxLength 2000 */
   comment: string;
-  /**
-     * @minItems 1
-     * @maxItems 8
-     */
+  /** @minItems 1 */
   uploadIds: string[];
 }
 
@@ -656,7 +652,7 @@ export interface UploadUrlRequest {
   name: string;
   /**
      * @minimum 1
-     * @maximum 10485760
+     * @maximum 26214400
      */
   size: number;
   contentType: UploadUrlRequestContentType;

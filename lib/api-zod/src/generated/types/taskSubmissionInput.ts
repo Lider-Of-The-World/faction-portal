@@ -9,9 +9,6 @@
 export interface TaskSubmissionInput {
   /** @maxLength 2000 */
   comment: string;
-  /**
-     * @minItems 1
-     * @maxItems 8
-     */
+  /** @minItems 1 */
   uploadIds: string[];
 }

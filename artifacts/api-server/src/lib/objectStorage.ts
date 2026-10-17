@@ -13,7 +13,7 @@ import {
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 const DROPBOX_API_ENDPOINT = "https://api.dropboxapi.com/2";
 const DROPBOX_CONTENT_ENDPOINT = "https://content.dropboxapi.com/2";
-const MAX_DROPBOX_OBJECT_BYTES = 10 * 1024 * 1024;
+const MAX_DROPBOX_OBJECT_BYTES = 25 * 1024 * 1024;
 
 type DropboxMetadata = {
   name?: string;

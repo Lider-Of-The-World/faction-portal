@@ -35,7 +35,7 @@ router.post(
   async (req, res): Promise<void> => {
     const parsed = RequestUploadUrlBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: "Можно загрузить JPG, PNG или WebP до 10 МБ." });
+      res.status(400).json({ error: "Можно загрузить JPG, PNG или WebP до 25 МБ." });
       return;
     }
     const declaredError = validateDeclaredImage(
