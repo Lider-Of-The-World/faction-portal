@@ -20,15 +20,19 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AuditLog,
   ChangePasswordInput,
   Dashboard,
   DisciplineInput,
   DisciplineRecord,
+  DisciplineRevocationInput,
   ErrorEnvelope,
   Event,
   EventInput,
   EventUpdate,
   HealthStatus,
+  ListAuditLogsParams,
+  ListDisciplineParams,
   LoginInput,
   Member,
   MemberCredentials,
@@ -170,7 +174,7 @@ export const getGetSetupStatusUrl = () => {
 }
 
 /**
- * @summary Проверить, создан ли первый лидер
+ * @summary Проверить и при необходимости завершить начальную настройку первого лидера
  */
 export const getSetupStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<SetupStatus> => {
 
@@ -217,7 +221,7 @@ export type GetSetupStatusQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Проверить, создан ли первый лидер
+ * @summary Проверить и при необходимости завершить начальную настройку первого лидера
  */
 
 export function useGetSetupStatus<TData = Awaited<ReturnType<typeof getSetupStatus>>, TError = ErrorType<unknown>>(
@@ -2696,20 +2700,27 @@ export const useCancelTask = <TError = ErrorType<unknown>,
       return useMutation(getCancelTaskMutationOptions(options));
     }
 
-export const getListDisciplineUrl = () => {
+export const getListDisciplineUrl = (params?: ListDisciplineParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/discipline`
+  return stringifiedParams.length > 0 ? `/api/discipline?${stringifiedParams}` : `/api/discipline`
 }
 
 /**
  * @summary Записи дисциплины с учётом роли
  */
-export const listDiscipline = async ( options?: Parameters<typeof customFetch>[1]): Promise<DisciplineRecord[]> => {
+export const listDiscipline = async (params?: ListDisciplineParams, options?: Parameters<typeof customFetch>[1]): Promise<DisciplineRecord[]> => {
 
-  return customFetch<DisciplineRecord[]>(getListDisciplineUrl(),
+  return customFetch<DisciplineRecord[]>(getListDisciplineUrl(params),
   {
     ...options,
     method: 'GET'
@@ -2722,23 +2733,23 @@ export const listDiscipline = async ( options?: Parameters<typeof customFetch>[1
 
 
 
-export const getListDisciplineQueryKey = () => {
+export const getListDisciplineQueryKey = (params?: ListDisciplineParams,) => {
     return [
-    `/api/discipline`
+    `/api/discipline`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListDisciplineQueryOptions = <TData = Awaited<ReturnType<typeof listDiscipline>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDiscipline>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListDisciplineQueryOptions = <TData = Awaited<ReturnType<typeof listDiscipline>>, TError = ErrorType<unknown>>(params?: ListDisciplineParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDiscipline>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListDisciplineQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListDisciplineQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDiscipline>>> = ({ signal }) => listDiscipline({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDiscipline>>> = ({ signal }) => listDiscipline(params, { signal, ...requestOptions });
 
 
 
@@ -2756,11 +2767,11 @@ export type ListDisciplineQueryError = ErrorType<unknown>
  */
 
 export function useListDiscipline<TData = Awaited<ReturnType<typeof listDiscipline>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDiscipline>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: ListDisciplineParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDiscipline>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListDisciplineQueryOptions(options)
+  const queryOptions = getListDisciplineQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -2860,6 +2871,179 @@ export const useCreateDisciplineRecord = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getCreateDisciplineRecordMutationOptions(options));
     }
+
+export const getRevokeDisciplineRecordUrl = (id: string,) => {
+
+
+
+
+  return `/api/discipline/${id}/revoke`
+}
+
+/**
+ * @summary Снять активное взыскание с обязательной причиной
+ */
+export const revokeDisciplineRecord = async (id: string,
+    disciplineRevocationInput: DisciplineRevocationInput, options?: Parameters<typeof customFetch>[1]): Promise<DisciplineRecord> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<DisciplineRecord>(getRevokeDisciplineRecordUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(disciplineRevocationInput)
+  }
+);}
+
+
+
+
+
+export const getRevokeDisciplineRecordMutationKey = () => ['revokeDisciplineRecord'] as const;
+
+export const getRevokeDisciplineRecordMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeDisciplineRecord>>, TError,RevokeDisciplineRecordMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeDisciplineRecord>>, TError,RevokeDisciplineRecordMutationVariables, TContext> => {
+
+const mutationKey = getRevokeDisciplineRecordMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeDisciplineRecord>>, RevokeDisciplineRecordMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  revokeDisciplineRecord(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeDisciplineRecordMutationResult = NonNullable<Awaited<ReturnType<typeof revokeDisciplineRecord>>>
+    export type RevokeDisciplineRecordMutationBody = BodyType<DisciplineRevocationInput>
+    export type RevokeDisciplineRecordMutationError = ErrorType<unknown>
+    export type RevokeDisciplineRecordMutationVariables = {id: string;data: BodyType<DisciplineRevocationInput>}
+
+    /**
+ * @summary Снять активное взыскание с обязательной причиной
+ */
+export const useRevokeDisciplineRecord = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeDisciplineRecord>>, TError,RevokeDisciplineRecordMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revokeDisciplineRecord>>,
+        TError,
+        RevokeDisciplineRecordMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRevokeDisciplineRecordMutationOptions(options));
+    }
+
+export const getListAuditLogsUrl = (params?: ListAuditLogsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/audit-logs?${stringifiedParams}` : `/api/audit-logs`
+}
+
+/**
+ * @summary Прочитать неизменяемый журнал действий руководства
+ */
+export const listAuditLogs = async (params?: ListAuditLogsParams, options?: Parameters<typeof customFetch>[1]): Promise<AuditLog[]> => {
+
+  return customFetch<AuditLog[]>(getListAuditLogsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAuditLogsQueryKey = (params?: ListAuditLogsParams,) => {
+    return [
+    `/api/audit-logs`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAuditLogsQueryOptions = <TData = Awaited<ReturnType<typeof listAuditLogs>>, TError = ErrorType<unknown>>(params?: ListAuditLogsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAuditLogs>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAuditLogsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAuditLogs>>> = ({ signal }) => listAuditLogs(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAuditLogs>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAuditLogsQueryResult = NonNullable<Awaited<ReturnType<typeof listAuditLogs>>>
+export type ListAuditLogsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Прочитать неизменяемый журнал действий руководства
+ */
+
+export function useListAuditLogs<TData = Awaited<ReturnType<typeof listAuditLogs>>, TError = ErrorType<unknown>>(
+ params?: ListAuditLogsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAuditLogs>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAuditLogsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getRequestUploadUrlUrl = () => {
 

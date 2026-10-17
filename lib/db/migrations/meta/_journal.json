@@ -15,6 +15,27 @@
       "when": 1792226649008,
       "tag": "0001_supabase_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792241542569,
+      "tag": "0002_daily_standard_cycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792241794913,
+      "tag": "0003_standard_cycle_close_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792241980592,
+      "tag": "0004_single_daily_standard",
+      "breakpoints": true
     }
   ]
 }

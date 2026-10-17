@@ -13,6 +13,7 @@ export const NotificationKind = {
   standard_assigned: 'standard_assigned',
   standard_submitted: 'standard_submitted',
   standard_reviewed: 'standard_reviewed',
+  standard_auto_closed: 'standard_auto_closed',
   task_assigned: 'task_assigned',
   task_submitted: 'task_submitted',
   task_reviewed: 'task_reviewed',

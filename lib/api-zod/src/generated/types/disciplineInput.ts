@@ -5,15 +5,17 @@
  * API для управления игровой фракцией
  * OpenAPI spec version: 0.1.0
  */
+import type { DisciplineInputType } from './disciplineInputType';
 
 export interface DisciplineInput {
   memberId: string;
-  type: 'warning' | 'reprimand';
+  type: DisciplineInputType;
   /**
      * @minLength 1
      * @maxLength 4000
      */
   reason: string;
+  /** Stable idempotency key for safe retries */
   requestId: string;
   /** @nullable */
   evidencePath?: string | null;

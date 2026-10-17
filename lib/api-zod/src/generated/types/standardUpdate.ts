@@ -31,4 +31,5 @@ export interface StandardUpdate {
      * @maxLength 40
      */
   unit?: string;
+  dailyEnabled?: boolean;
 }

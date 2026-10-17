@@ -9,5 +9,4 @@
 export interface StandardAssignmentInput {
   standardId: string;
   assigneeId: string;
-  dueAt: Date;
 }
