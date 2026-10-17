@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { Router, type IRouter } from "express";
 import {
@@ -354,7 +354,7 @@ router.post(
       return;
     }
     if (!["not_submitted", "rejected", "revision_required"].includes(assignment.status)) {
-      res.status(409).json({ error: "Сейчас нельзя отправить новую версию этого норматива." });
+      res.status(409).json({ error: "Отчёт уже отправлен или сейчас нельзя его отправить." });
       return;
     }
     const uploadIds = body.data.uploadIds;
@@ -415,7 +415,24 @@ router.post(
       }
     }
 
-    const [submission] = await db.transaction(async (tx) => {
+    const submission = await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT id FROM faction_standard_assignments WHERE id = ${assignment.id} FOR UPDATE`,
+      );
+      const [lockedAssignment] = await tx
+        .select({ status: standardAssignmentsTable.status })
+        .from(standardAssignmentsTable)
+        .where(eq(standardAssignmentsTable.id, assignment.id))
+        .limit(1);
+      if (
+        !lockedAssignment ||
+        !["not_submitted", "rejected", "revision_required"].includes(
+          lockedAssignment.status,
+        )
+      ) {
+        return null;
+      }
+
       const [versionCount] = await tx
         .select({ value: count() })
         .from(standardSubmissionsTable)
@@ -455,7 +472,7 @@ router.post(
             recipientId: manager.id,
             kind: "standard_submitted",
             title: "Норматив ожидает проверки",
-            message: `${viewer.nickname} отправил норматив «${assignment.title}», версия ${created[0]!.version}.`,
+            message: `${viewer.nickname} отправил норматив «${assignment.title}».`,
             relatedType: "standard_assignment",
             relatedId: assignment.id,
           })),
@@ -473,8 +490,13 @@ router.post(
         targetMemberNickname: viewer.nickname,
         details: { submissionId: created[0]!.id, version: created[0]!.version },
       });
-      return created;
+      return created[0]!;
     });
+
+    if (!submission) {
+      res.status(409).json({ error: "Отчёт уже отправлен или сейчас нельзя его отправить." });
+      return;
+    }
 
     res.status(201).json(
       SubmitStandardResponse.parse({
@@ -574,7 +596,7 @@ router.patch(
       return reviewed;
     });
     if (!result) {
-      res.status(404).json({ error: "Отправленная версия не найдена или уже проверена." });
+      res.status(404).json({ error: "Отчёт не найден или уже проверен." });
       return;
     }
     res.json(
