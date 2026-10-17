@@ -18,7 +18,9 @@ test("Moscow daily cycle changes at 00:00 Europe/Moscow", () => {
   assert.equal(atMidnight.startsAt.toISOString(), "2026-10-17T21:00:00.000Z");
 });
 
-test("daily assignments target only the four requested positions", () => {
+test("daily assignments recognize each of the six supported titles", () => {
+  assert.equal(isDailyStandardPosition("Администратор"), true);
+  assert.equal(isDailyStandardPosition("Лидер"), true);
   assert.equal(isDailyStandardPosition("Вице-Губернатор"), true);
   assert.equal(isDailyStandardPosition("депутат"), true);
   assert.equal(isDailyStandardPosition("Адвокат"), true);

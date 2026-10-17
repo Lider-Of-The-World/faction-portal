@@ -2,6 +2,8 @@ export const MOSCOW_TIME_ZONE = "Europe/Moscow";
 
 const MOSCOW_UTC_OFFSET_MS = 3 * 60 * 60 * 1000;
 const DAILY_STANDARD_POSITIONS = new Set([
+  "администратор",
+  "лидер",
   "вице-губернатор",
   "депутат",
   "адвокат",
@@ -40,4 +42,14 @@ export function isDailyStandardPosition(rank: string): boolean {
     .replace(/\s+/g, " ")
     .trim();
   return DAILY_STANDARD_POSITIONS.has(normalized);
+}
+
+export function normalizeDailyStandardRank(rank: string): string {
+  return rank
+    .normalize("NFKC")
+    .toLocaleLowerCase("ru-RU")
+    .replaceAll("ё", "е")
+    .replace(/[‐‑‒–—]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
 }
