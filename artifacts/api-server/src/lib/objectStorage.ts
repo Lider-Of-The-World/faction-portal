@@ -448,6 +448,11 @@ export class ObjectStorageService {
     }
 
     const objectFile = await this.getObjectEntityFile(normalizedPath);
+    if (objectFile instanceof DropboxStoredFile) {
+      // Dropbox objects stay private and are authorized by the API routes;
+      // Google Cloud object metadata ACLs do not apply to Dropbox files.
+      return normalizedPath;
+    }
     await setObjectAclPolicy(objectFile, aclPolicy);
     return normalizedPath;
   }
