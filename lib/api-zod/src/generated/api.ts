@@ -14,6 +14,8 @@ import * as zod from 'zod';
 export const HealthCheckResponse = zod.object({
   "status": zod.string()
 })
+
+
 /**
  * @summary Проверить и при необходимости завершить начальную настройку первого лидера
  */
@@ -66,6 +68,8 @@ export const GetCurrentUserResponse = zod.object({
 export const LogoutResponse = zod.object({
   "ok": zod.boolean()
 })
+
+
 /**
  * @summary Сменить пароль текущего пользователя
  */
@@ -529,13 +533,12 @@ export const SubmitStandardParams = zod.object({
 
 export const submitStandardBodyCommentMax = 2000;
 
-export const submitStandardBodyUploadIdsMax = 8;
 
 
 
 export const SubmitStandardBody = zod.object({
   "comment": zod.string().min(1).max(submitStandardBodyCommentMax),
-  "uploadIds": zod.array(zod.string().uuid()).min(1).max(submitStandardBodyUploadIdsMax)
+  "uploadIds": zod.array(zod.string().uuid()).min(1)
 })
 
 export const SubmitStandardResponse = zod.object({
@@ -756,13 +759,12 @@ export const SubmitTaskParams = zod.object({
 
 export const submitTaskBodyCommentMax = 2000;
 
-export const submitTaskBodyUploadIdsMax = 8;
 
 
 
 export const SubmitTaskBody = zod.object({
   "comment": zod.string().max(submitTaskBodyCommentMax),
-  "uploadIds": zod.array(zod.string().uuid()).min(1).max(submitTaskBodyUploadIdsMax)
+  "uploadIds": zod.array(zod.string().uuid()).min(1)
 })
 
 export const SubmitTaskResponse = zod.object({
@@ -1019,7 +1021,7 @@ export const ListAuditLogsResponse = zod.array(ListAuditLogsResponseItem)
  */
 export const requestUploadUrlBodyNameMax = 255;
 
-export const requestUploadUrlBodySizeMax = 10485760;
+export const requestUploadUrlBodySizeMax = 26214400;
 
 
 
@@ -1029,8 +1031,11 @@ export const RequestUploadUrlBody = zod.object({
   "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp'])
 })
 
+export const requestUploadUrlResponseUploadURLTwoRegExp = new RegExp('^/api/storage/uploads/transfer/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$');
+
+
 export const RequestUploadUrlResponse = zod.object({
-  "uploadURL": zod.string().url(),
+  "uploadURL": zod.union([zod.string().url(),zod.string().regex(requestUploadUrlResponseUploadURLTwoRegExp)]),
   "objectPath": zod.string(),
   "uploadId": zod.string().uuid()
 })

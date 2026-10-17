@@ -476,7 +476,7 @@ router.post(
     const params = SubmitTaskParams.safeParse(req.params);
     const body = SubmitTaskBody.safeParse(req.body);
     if (!params.success || !body.success) {
-      res.status(400).json({ error: "Добавьте от 1 до 8 допустимых скриншотов." });
+      res.status(400).json({ error: "Добавьте хотя бы один допустимый скриншот." });
       return;
     }
     const viewer = req.factionUser!;

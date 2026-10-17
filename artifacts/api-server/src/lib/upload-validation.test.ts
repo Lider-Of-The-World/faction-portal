@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  RequestUploadUrlBody,
+  RequestUploadUrlResponse,
+  SubmitStandardBody,
+  SubmitTaskBody,
+} from "../../../../lib/api-zod/src/generated/api.ts";
+import {
+  MAX_SCREENSHOT_BYTES,
   validateDeclaredImage,
   verifyImageBytes,
 } from "./uploadValidation.ts";
@@ -15,7 +22,66 @@ test("declared image validation rejects mismatched extensions, types, and sizes"
   assert.ok(validateDeclaredImage("screen.exe", 3, "image/jpeg"));
   assert.ok(validateDeclaredImage("screen.jpg", 3, "image/png"));
   assert.ok(validateDeclaredImage("screen.jpg", 0, "image/jpeg"));
-  assert.ok(validateDeclaredImage("screen.jpg", 10 * 1024 * 1024 + 1, "image/jpeg"));
+  assert.equal(validateDeclaredImage("screen.jpg", MAX_SCREENSHOT_BYTES, "image/jpeg"), null);
+  assert.ok(validateDeclaredImage("screen.jpg", MAX_SCREENSHOT_BYTES + 1, "image/jpeg"));
+});
+
+test("upload API accepts files up to 25 MiB, but not larger files", () => {
+  const request = {
+    name: "screen.jpg",
+    contentType: "image/jpeg",
+    size: MAX_SCREENSHOT_BYTES,
+  };
+  assert.equal(RequestUploadUrlBody.safeParse(request).success, true);
+  assert.equal(
+    RequestUploadUrlBody.safeParse({
+      ...request,
+      size: MAX_SCREENSHOT_BYTES + 1,
+    }).success,
+    false,
+  );
+});
+
+test("upload URL response accepts Dropbox's same-origin route and absolute storage URLs", () => {
+  const uploadId = "00000000-0000-4000-8000-000000000001";
+  const base = { objectPath: `/objects/uploads/${uploadId}`, uploadId };
+  assert.equal(
+    RequestUploadUrlResponse.safeParse({
+      ...base,
+      uploadURL: `/api/storage/uploads/transfer/${uploadId}`,
+    }).success,
+    true,
+  );
+  assert.equal(
+    RequestUploadUrlResponse.safeParse({
+      ...base,
+      uploadURL: "https://storage.example.com/signed-upload",
+    }).success,
+    true,
+  );
+  assert.equal(
+    RequestUploadUrlResponse.safeParse({
+      ...base,
+      uploadURL: `/api/storage/other/${uploadId}`,
+    }).success,
+    false,
+  );
+});
+
+test("standard and task submissions accept more than eight screenshots", () => {
+  const uploadIds = Array.from(
+    { length: 9 },
+    (_, index) =>
+      `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+  );
+  assert.equal(
+    SubmitStandardBody.safeParse({ comment: "Proof", uploadIds }).success,
+    true,
+  );
+  assert.equal(
+    SubmitTaskBody.safeParse({ comment: "Proof", uploadIds }).success,
+    true,
+  );
 });
 
 test("binary validation checks the declared size and image signature", () => {

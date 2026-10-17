@@ -2,6 +2,7 @@
 
 # compiled output
 dist
+/generated-artifacts/
 tmp
 out-tsc
 *.tsbuildinfo
@@ -10,21 +11,6 @@ out-tsc
 
 # dependencies
 node_modules
-
-# Secrets and local environment
-.env
-.env.*
-!.env.example
-*.pem
-*.key
-*.p12
-*.pfx
-
-# Local/runtime data
-*.log
-*.pid
-coverage/
-.turbo/
 
 # IDEs and editors
 /.idea
@@ -62,13 +48,3 @@ Thumbs.db
 # Replit
 .cache/
 .local/
-.agents/
-.replit
-.replitignore
-replit.md
-AI_HANDOFF_RU.md
-**/.replit-artifact/
-artifacts/mockup-sandbox/
-
-# Generated downloadable handoff packages
-/generated-artifacts/
