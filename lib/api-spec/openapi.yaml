@@ -203,6 +203,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+    delete:
+      operationId: deleteMember
+      tags: [members]
+      summary: Исключить сотрудника из состава без удаления истории
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Сотрудник исключён из состава
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "403":
+          description: Недостаточно прав или нельзя удалить эту роль
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /events:
     get:
       operationId: listEvents
@@ -799,7 +823,7 @@ components:
       enum: [leader, admin, employee]
     AccountStatus:
       type: string
-      enum: [active, blocked]
+      enum: [active, blocked, removed]
     SessionUser:
       type: object
       required: [id, nickname, role, rank, status, mustChangePassword]
@@ -876,7 +900,10 @@ components:
           type: string
           enum: [admin, employee]
         status:
-          $ref: "#/components/schemas/AccountStatus"
+          $ref: "#/components/schemas/MemberUpdateStatus"
+    MemberUpdateStatus:
+      type: string
+      enum: [active, blocked]
     EventStatus:
       type: string
       enum: [planned, completed, cancelled]

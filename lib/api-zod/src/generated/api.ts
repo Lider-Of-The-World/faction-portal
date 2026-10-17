@@ -44,7 +44,7 @@ export const LoginResponse = zod.object({
   "nickname": zod.string(),
   "role": zod.enum(['leader', 'admin', 'employee']),
   "rank": zod.string(),
-  "status": zod.enum(['active', 'blocked']),
+  "status": zod.enum(['active', 'blocked', 'removed']),
   "mustChangePassword": zod.boolean()
 })
 
@@ -57,7 +57,7 @@ export const GetCurrentUserResponse = zod.object({
   "nickname": zod.string(),
   "role": zod.enum(['leader', 'admin', 'employee']),
   "rank": zod.string(),
-  "status": zod.enum(['active', 'blocked']),
+  "status": zod.enum(['active', 'blocked', 'removed']),
   "mustChangePassword": zod.boolean()
 })
 
@@ -140,7 +140,7 @@ export const ListMembersResponseItem = zod.object({
   "nickname": zod.string(),
   "role": zod.enum(['leader', 'admin', 'employee']),
   "rank": zod.string(),
-  "status": zod.enum(['active', 'blocked']),
+  "status": zod.enum(['active', 'blocked', 'removed']),
   "createdAt": zod.coerce.date(),
   "lastLogin": zod.coerce.date().nullish()
 })
@@ -169,7 +169,7 @@ export const CreateMemberResponse = zod.object({
   "nickname": zod.string(),
   "role": zod.enum(['leader', 'admin', 'employee']),
   "rank": zod.string(),
-  "status": zod.enum(['active', 'blocked']),
+  "status": zod.enum(['active', 'blocked', 'removed']),
   "createdAt": zod.coerce.date(),
   "lastLogin": zod.coerce.date().nullish()
 }),
@@ -199,9 +199,20 @@ export const UpdateMemberResponse = zod.object({
   "nickname": zod.string(),
   "role": zod.enum(['leader', 'admin', 'employee']),
   "rank": zod.string(),
-  "status": zod.enum(['active', 'blocked']),
+  "status": zod.enum(['active', 'blocked', 'removed']),
   "createdAt": zod.coerce.date(),
   "lastLogin": zod.coerce.date().nullish()
+})
+
+/**
+ * @summary Исключить сотрудника из состава без удаления истории
+ */
+export const DeleteMemberParams = zod.object({
+  "id": zod.coerce.string().uuid()
+})
+
+export const DeleteMemberResponse = zod.object({
+  "ok": zod.boolean()
 })
 
 

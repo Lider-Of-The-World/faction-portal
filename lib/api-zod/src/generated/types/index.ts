@@ -26,6 +26,7 @@ export * from './memberInput';
 export * from './memberInputRole';
 export * from './memberUpdate';
 export * from './memberUpdateRole';
+export * from './memberUpdateStatus';
 export * from './notification';
 export * from './notificationKind';
 export * from './notificationRelatedType';

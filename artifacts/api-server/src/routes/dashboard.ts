@@ -7,6 +7,7 @@ import {
   inArray,
   isNull,
   lt,
+  ne,
   notInArray,
 } from "drizzle-orm";
 import { Router, type IRouter } from "express";
@@ -32,7 +33,10 @@ router.get("/dashboard", requireReadyAuth, async (req, res): Promise<void> => {
   const [allMembers, activeMembers, upcomingEvents, openTasks, pendingStandards, pendingTaskReviews, overdueStandards, overdueTasks, unreadNotifications] = await Promise.all([
     employeeOnly
       ? Promise.resolve([{ value: 1 }])
-      : db.select({ value: count() }).from(membersTable),
+      : db
+          .select({ value: count() })
+          .from(membersTable)
+          .where(ne(membersTable.status, "removed")),
     employeeOnly
       ? Promise.resolve([{ value: 1 }])
       : db
