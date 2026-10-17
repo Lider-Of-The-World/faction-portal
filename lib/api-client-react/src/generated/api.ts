@@ -119,8 +119,6 @@ export const getHealthCheckQueryKey = () => {
     `/api/healthz`
     ] as const;
     }
-
-
 export const getHealthCheckQueryOptions = <TData = Awaited<ReturnType<typeof healthCheck>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof healthCheck>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -901,6 +899,10 @@ export const useUpdateMember = <TError = ErrorType<ErrorEnvelope>,
     }
 
 export const getDeleteMemberUrl = (id: string,) => {
+
+
+
+
   return `/api/members/${id}`
 }
 
@@ -908,11 +910,19 @@ export const getDeleteMemberUrl = (id: string,) => {
  * @summary Исключить сотрудника из состава без удаления истории
  */
 export const deleteMember = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<OkResponse> => {
-  return customFetch<OkResponse>(getDeleteMemberUrl(id), {
+
+  return customFetch<OkResponse>(getDeleteMemberUrl(id),
+  {
     ...options,
     method: 'DELETE'
+
+
   }
 );}
+
+
+
+
 
 export const getDeleteMemberMutationKey = () => ['deleteMember'] as const;
 
@@ -927,18 +937,28 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       : {...options, mutation: {...options.mutation, mutationKey}}
       : {mutation: { mutationKey, }, request: undefined};
 
+
+
+
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMember>>, DeleteMemberMutationVariables> = (props) => {
           const {id} = props ?? {};
+
           return  deleteMember(id,requestOptions)
         }
 
+
+
+
+
+
   return  { mutationFn, ...mutationOptions }}
 
-export type DeleteMemberMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMember>>>
-export type DeleteMemberMutationError = ErrorType<ErrorEnvelope>
-export type DeleteMemberMutationVariables = {id: string}
+    export type DeleteMemberMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMember>>>
 
-/**
+    export type DeleteMemberMutationError = ErrorType<ErrorEnvelope>
+    export type DeleteMemberMutationVariables = {id: string}
+
+    /**
  * @summary Исключить сотрудника из состава без удаления истории
  */
 export const useDeleteMember = <TError = ErrorType<ErrorEnvelope>,

@@ -14,8 +14,6 @@ import * as zod from 'zod';
 export const HealthCheckResponse = zod.object({
   "status": zod.string()
 })
-
-
 /**
  * @summary Проверить и при необходимости завершить начальную настройку первого лидера
  */
@@ -68,8 +66,6 @@ export const GetCurrentUserResponse = zod.object({
 export const LogoutResponse = zod.object({
   "ok": zod.boolean()
 })
-
-
 /**
  * @summary Сменить пароль текущего пользователя
  */
@@ -159,8 +155,7 @@ export const createMemberBodyRankMax = 80;
 
 export const CreateMemberBody = zod.object({
   "nickname": zod.string().min(createMemberBodyNicknameMin).max(createMemberBodyNicknameMax),
-  "rank": zod.string().min(1).max(createMemberBodyRankMax),
-  "role": zod.enum(['admin', 'employee'])
+  "rank": zod.string().min(1).max(createMemberBodyRankMax)
 })
 
 export const CreateMemberResponse = zod.object({
@@ -190,7 +185,6 @@ export const updateMemberBodyRankMax = 80;
 
 export const UpdateMemberBody = zod.object({
   "rank": zod.string().min(1).max(updateMemberBodyRankMax).optional(),
-  "role": zod.enum(['admin', 'employee']).optional(),
   "status": zod.enum(['active', 'blocked']).optional()
 })
 
@@ -204,6 +198,7 @@ export const UpdateMemberResponse = zod.object({
   "lastLogin": zod.coerce.date().nullish()
 })
 
+
 /**
  * @summary Исключить сотрудника из состава без удаления истории
  */
@@ -214,9 +209,6 @@ export const DeleteMemberParams = zod.object({
 export const DeleteMemberResponse = zod.object({
   "ok": zod.boolean()
 })
-
-
-
 
 
 /**
@@ -312,6 +304,10 @@ export const DeleteEventResponse = zod.object({
 /**
  * @summary Список нормативов
  */
+export const listStandardsResponseDailyRankMax = 80;
+
+
+
 export const ListStandardsResponseItem = zod.object({
   "id": zod.string().uuid(),
   "title": zod.string(),
@@ -320,7 +316,7 @@ export const ListStandardsResponseItem = zod.object({
   "category": zod.string(),
   "target": zod.number().int(),
   "unit": zod.string(),
-  "dailyEnabled": zod.boolean(),
+  "dailyRank": zod.string().max(listStandardsResponseDailyRankMax).nullable(),
   "createdAt": zod.coerce.date()
 })
 export const ListStandardsResponse = zod.array(ListStandardsResponseItem)
@@ -340,7 +336,9 @@ export const createStandardBodyCategoryMax = 80;
 
 export const createStandardBodyUnitMax = 40;
 
-export const createStandardBodyDailyEnabledDefault = false;
+export const createStandardBodyDailyRankMax = 80;
+
+
 
 export const CreateStandardBody = zod.object({
   "title": zod.string().min(1).max(createStandardBodyTitleMax),
@@ -349,8 +347,12 @@ export const CreateStandardBody = zod.object({
   "category": zod.string().min(1).max(createStandardBodyCategoryMax),
   "target": zod.number().int().min(1),
   "unit": zod.string().min(1).max(createStandardBodyUnitMax),
-  "dailyEnabled": zod.boolean().default(createStandardBodyDailyEnabledDefault)
+  "dailyRank": zod.string().max(createStandardBodyDailyRankMax).nullish()
 })
+
+export const createStandardResponseDailyRankMax = 80;
+
+
 
 export const CreateStandardResponse = zod.object({
   "id": zod.string().uuid(),
@@ -360,7 +362,7 @@ export const CreateStandardResponse = zod.object({
   "category": zod.string(),
   "target": zod.number().int(),
   "unit": zod.string(),
-  "dailyEnabled": zod.boolean(),
+  "dailyRank": zod.string().max(createStandardResponseDailyRankMax).nullable(),
   "createdAt": zod.coerce.date()
 })
 
@@ -383,6 +385,8 @@ export const updateStandardBodyCategoryMax = 80;
 
 export const updateStandardBodyUnitMax = 40;
 
+export const updateStandardBodyDailyRankMax = 80;
+
 
 
 export const UpdateStandardBody = zod.object({
@@ -392,8 +396,12 @@ export const UpdateStandardBody = zod.object({
   "category": zod.string().min(1).max(updateStandardBodyCategoryMax).optional(),
   "target": zod.number().int().min(1).optional(),
   "unit": zod.string().min(1).max(updateStandardBodyUnitMax).optional(),
-  "dailyEnabled": zod.boolean().optional()
+  "dailyRank": zod.string().max(updateStandardBodyDailyRankMax).nullish()
 })
+
+export const updateStandardResponseDailyRankMax = 80;
+
+
 
 export const UpdateStandardResponse = zod.object({
   "id": zod.string().uuid(),
@@ -403,7 +411,7 @@ export const UpdateStandardResponse = zod.object({
   "category": zod.string(),
   "target": zod.number().int(),
   "unit": zod.string(),
-  "dailyEnabled": zod.boolean(),
+  "dailyRank": zod.string().max(updateStandardResponseDailyRankMax).nullable(),
   "createdAt": zod.coerce.date()
 })
 
