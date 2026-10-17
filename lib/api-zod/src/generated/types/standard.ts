@@ -14,6 +14,10 @@ export interface Standard {
   category: string;
   target: number;
   unit: string;
-  dailyEnabled: boolean;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  dailyRank: string | null;
   createdAt: Date;
 }

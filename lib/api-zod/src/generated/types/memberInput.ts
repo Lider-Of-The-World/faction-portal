@@ -5,7 +5,6 @@
  * API для управления игровой фракцией
  * OpenAPI spec version: 0.1.0
  */
-import type { MemberInputRole } from './memberInputRole';
 
 export interface MemberInput {
   /**
@@ -18,5 +17,4 @@ export interface MemberInput {
      * @maxLength 80
      */
   rank: string;
-  role: MemberInputRole;
 }

@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { Router, type IRouter } from "express";
 import {
@@ -189,7 +189,12 @@ router.post(
     const [standard] = await db
       .select({ id: standardsTable.id, title: standardsTable.title })
       .from(standardsTable)
-      .where(eq(standardsTable.id, parsed.data.standardId))
+      .where(
+        and(
+          eq(standardsTable.id, parsed.data.standardId),
+          isNull(standardsTable.archivedAt),
+        ),
+      )
       .limit(1);
     const [assignee] = await db
       .select({

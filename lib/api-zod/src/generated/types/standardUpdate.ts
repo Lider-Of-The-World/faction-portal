@@ -31,5 +31,9 @@ export interface StandardUpdate {
      * @maxLength 40
      */
   unit?: string;
-  dailyEnabled?: boolean;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  dailyRank?: string | null;
 }

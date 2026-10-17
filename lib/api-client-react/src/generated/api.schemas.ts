@@ -29,7 +29,6 @@ export const UserRole = {
   admin: 'admin',
   employee: 'employee',
 } as const;
-
 export type AccountStatus = typeof AccountStatus[keyof typeof AccountStatus];
 
 
@@ -38,7 +37,6 @@ export const AccountStatus = {
   blocked: 'blocked',
   removed: 'removed',
 } as const;
-
 export interface SessionUser {
   id: string;
   nickname: string;
@@ -167,14 +165,6 @@ export interface Member {
   lastLogin?: string | null;
 }
 
-export type MemberInputRole = typeof MemberInputRole[keyof typeof MemberInputRole];
-
-
-export const MemberInputRole = {
-  admin: 'admin',
-  employee: 'employee',
-} as const;
-
 export interface MemberInput {
   /**
      * @minLength 3
@@ -186,7 +176,6 @@ export interface MemberInput {
      * @maxLength 80
      */
   rank: string;
-  role: MemberInputRole;
 }
 
 export interface MemberCredentials {
@@ -194,14 +183,6 @@ export interface MemberCredentials {
   /** Показывается однократно, хранится на сервере только в виде хеша */
   temporaryPassword: string;
 }
-
-export type MemberUpdateRole = typeof MemberUpdateRole[keyof typeof MemberUpdateRole];
-
-
-export const MemberUpdateRole = {
-  admin: 'admin',
-  employee: 'employee',
-} as const;
 
 export type MemberUpdateStatus = typeof MemberUpdateStatus[keyof typeof MemberUpdateStatus];
 
@@ -217,7 +198,6 @@ export interface MemberUpdate {
      * @maxLength 80
      */
   rank?: string;
-  role?: MemberUpdateRole;
   status?: MemberUpdateStatus;
 }
 
@@ -256,7 +236,11 @@ export interface Standard {
   category: string;
   target: number;
   unit: string;
-  dailyEnabled: boolean;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  dailyRank: string | null;
   createdAt: string;
 }
 
@@ -285,7 +269,11 @@ export interface StandardInput {
      * @maxLength 40
      */
   unit: string;
-  dailyEnabled?: boolean;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  dailyRank?: string | null;
 }
 
 export interface StandardUpdate {
@@ -313,7 +301,11 @@ export interface StandardUpdate {
      * @maxLength 40
      */
   unit?: string;
-  dailyEnabled?: boolean;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  dailyRank?: string | null;
 }
 
 export type StandardAssignmentStatus = typeof StandardAssignmentStatus[keyof typeof StandardAssignmentStatus];

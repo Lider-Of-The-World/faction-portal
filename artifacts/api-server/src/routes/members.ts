@@ -17,6 +17,10 @@ import {
   requireManager,
 } from "../lib/auth";
 import { randomBytes } from "node:crypto";
+import {
+  accessRoleForRank,
+  canonicalFactionRank,
+} from "../lib/member-ranks";
 
 const router: IRouter = Router();
 const nicknamePattern = /^[A-Za-z0-9_]{3,32}$/;
@@ -54,7 +58,7 @@ router.post("/members", requireReadyAuth, async (req, res): Promise<void> => {
 
   const parsed = CreateMemberBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Проверьте ник, звание и роль." });
+    res.status(400).json({ error: "Проверьте игровое имя и звание." });
     return;
   }
   if (!nicknamePattern.test(parsed.data.nickname.trim())) {
@@ -63,7 +67,16 @@ router.post("/members", requireReadyAuth, async (req, res): Promise<void> => {
     });
     return;
   }
-  if (viewer.role !== "leader" && parsed.data.role !== "employee") {
+  const rank = canonicalFactionRank(parsed.data.rank);
+  if (!rank) {
+    res.status(400).json({
+      error:
+        "Выберите звание: Администратор, Лидер, Вице-Губернатор, Депутат, Адвокат или Лицензер.",
+    });
+    return;
+  }
+  const role = accessRoleForRank(rank);
+  if (viewer.role !== "leader" && role !== "employee") {
     res.status(403).json({ error: "Только лидер может назначать администраторов." });
     return;
   }
@@ -81,8 +94,8 @@ router.post("/members", requireReadyAuth, async (req, res): Promise<void> => {
           nickname,
           nicknameNormalized,
           passwordHash,
-          role: parsed.data.role,
-          rank: parsed.data.rank.trim(),
+          role,
+          rank,
           status: "active",
           mustChangePassword: true,
         })
@@ -155,8 +168,32 @@ router.patch(
       res.status(403).json({ error: "Управлять этим аккаунтом может только лидер." });
       return;
     }
-    if (body.data.role && viewer.role !== "leader") {
-      res.status(403).json({ error: "Менять роли может только лидер." });
+    const requestedRank = body.data.rank;
+    const canonicalRank =
+      requestedRank === undefined
+        ? undefined
+        : canonicalFactionRank(requestedRank);
+    if (
+      requestedRank !== undefined &&
+      !canonicalRank &&
+      requestedRank !== target.rank
+    ) {
+      res.status(400).json({ error: "Выберите одно из доступных званий." });
+      return;
+    }
+    const nextRank =
+      requestedRank === undefined ? undefined : canonicalRank ?? target.rank;
+    const nextRole = canonicalRank
+      ? accessRoleForRank(canonicalRank)
+      : target.role;
+    if (
+      canonicalRank &&
+      nextRole !== target.role &&
+      viewer.role !== "leader"
+    ) {
+      res.status(403).json({
+        error: "Назначать звания лидера и администратора может только лидер.",
+      });
       return;
     }
     if (body.data.status === "blocked" && target.id === viewer.id) {
@@ -169,8 +206,10 @@ router.patch(
     }
 
     const update: Partial<typeof membersTable.$inferInsert> = {};
-    if (body.data.rank !== undefined) update.rank = body.data.rank.trim();
-    if (body.data.role !== undefined) update.role = body.data.role;
+    if (nextRank !== undefined) {
+      update.rank = nextRank;
+      update.role = nextRole;
+    }
     if (body.data.status !== undefined) update.status = body.data.status;
 
     const [member] = await db.transaction(async (tx) => {

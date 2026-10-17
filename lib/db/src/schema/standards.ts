@@ -18,12 +18,14 @@ export const standardsTable = pgTable("faction_standards", {
   target: integer("target").notNull(),
   unit: text("unit").notNull(),
   dailyEnabled: boolean("daily_enabled").notNull().default(false),
+  dailyRank: text("daily_rank"),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdById: uuid("created_by_id").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 }, (table) => [
-  uniqueIndex("faction_standards_single_daily_uq")
-    .on(table.dailyEnabled)
-    .where(sql`${table.dailyEnabled} = true`),
+  uniqueIndex("faction_standards_daily_rank_uq")
+    .on(table.dailyRank)
+    .where(sql`${table.dailyEnabled} = true AND ${table.dailyRank} IS NOT NULL`),
 ]).enableRLS();
