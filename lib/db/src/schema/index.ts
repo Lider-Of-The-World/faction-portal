@@ -27,4 +27,5 @@ export * from "./submissions";
 export * from "./tasks";
 export * from "./discipline";
 export * from "./audit-logs";
+export * from "./inactivity-requests";
 export * from "./system-jobs";

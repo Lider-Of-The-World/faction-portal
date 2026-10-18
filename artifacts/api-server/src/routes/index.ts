@@ -11,6 +11,7 @@ import storageRouter from "./storage";
 import standardAssignmentsRouter from "./standard-assignments";
 import notificationsRouter from "./notifications";
 import auditLogsRouter from "./audit-logs";
+import inactivityRequestsRouter from "./inactivity-requests";
 import cronRouter from "./cron";
 
 const router: IRouter = Router();
@@ -28,5 +29,6 @@ router.use(dashboardRouter);
 router.use(storageRouter);
 router.use(notificationsRouter);
 router.use(auditLogsRouter);
+router.use(inactivityRequestsRouter);
 
 export default router;
