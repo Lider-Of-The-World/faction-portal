@@ -17,6 +17,7 @@ import {
 } from "@workspace/api-zod";
 import {
   db,
+  inactivityRequestsTable,
   membersTable,
   notificationsTable,
   standardAssignmentsTable,
@@ -27,6 +28,7 @@ import {
 } from "@workspace/db";
 import { requireManager, requireReadyAuth } from "../lib/auth";
 import { writeAudit } from "../lib/audit";
+import { isDateWithinInactivityPeriod } from "../lib/inactivity-period";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { verifyStoredImage } from "../lib/uploadValidation";
 import {
@@ -208,6 +210,28 @@ router.post(
       .limit(1);
     if (!standard || !assignee || assignee.role !== "employee" || assignee.status !== "active") {
       res.status(400).json({ error: "Норматив или активный сотрудник не найдены." });
+      return;
+    }
+    const approvedInactivityPeriods = await db
+      .select({
+        startDate: inactivityRequestsTable.startDate,
+        endDate: inactivityRequestsTable.endDate,
+      })
+      .from(inactivityRequestsTable)
+      .where(
+        and(
+          eq(inactivityRequestsTable.memberId, assignee.id),
+          eq(inactivityRequestsTable.status, "approved"),
+        ),
+      );
+    if (
+      approvedInactivityPeriods.some((period) =>
+        isDateWithinInactivityPeriod(getMoscowDailyCycle(new Date()).dayKey, period),
+      )
+    ) {
+      res.status(409).json({
+        error: "Нельзя назначить норматив в период одобренного неактива сотрудника.",
+      });
       return;
     }
 
