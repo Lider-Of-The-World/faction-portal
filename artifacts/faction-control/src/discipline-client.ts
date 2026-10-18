@@ -78,6 +78,7 @@ export function useDisciplineRecords() {
     queryKey: getDisciplineRecordsQueryKey(),
     queryFn: ({ signal }) =>
       customFetch<DisciplineRecord[]>("/api/discipline", { signal }),
+    refetchInterval: 60000,
   });
 }
 
