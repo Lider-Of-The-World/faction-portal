@@ -1289,3 +1289,62 @@ button, a, input, select, textarea { transition-duration: .18s; }
   .event-employee-actions .button { flex: 1 1 140px; }
   .modal-card.event-reports-modal { width: 100%; }
 }
+
+.password-reset-page {
+  position: relative;
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  overflow-y: auto;
+  padding: clamp(18px, 4vw, 48px);
+  background: radial-gradient(ellipse at 50% 4%, rgba(145, 75, 47, .16), transparent 54%), #111418;
+}
+.password-reset-card {
+  position: relative;
+  z-index: 1;
+  width: min(700px, 100%);
+  padding: clamp(24px, 5vw, 48px);
+  background: rgba(24, 27, 30, .97);
+  border: 1px solid #454039;
+  border-top: 3px solid #d49a54;
+  border-radius: 7px;
+  box-shadow: 0 28px 100px rgba(0, 0, 0, .48);
+  animation: rise-in .3s ease both;
+}
+.password-reset-card .brand-lockup { display: flex; align-items: center; gap: 12px; }
+.password-reset-card .brand-emblem { color: #f1d5a9; border-color: rgba(212, 154, 84, .6); background: linear-gradient(145deg, #3a2d1b, #1b1a19); }
+.password-reset-card .brand-name { color: #f2eee7; font-size: 14px; }
+.password-reset-card .brand-name span { color: #e2ae6b; }
+.password-reset-card .brand-sub { color: #9a907f; }
+.password-reset-status { display: flex; align-items: center; gap: 9px; margin-top: 34px; color: #e8b36e; font: 10px var(--app-font-mono); letter-spacing: .13em; }
+.password-reset-status svg { flex: none; }
+.password-reset-card h1 { margin: 13px 0 8px; color: #f3eee6; font-family: var(--app-font-serif); font-size: clamp(37px, 5.8vw, 54px); font-weight: 600; line-height: .98; letter-spacing: -.025em; }
+.password-reset-lead { margin: 0; color: #aaa8a2; font-size: 14px; line-height: 1.75; }
+.password-reset-lead strong { color: #f0dfc5; }
+.password-reset-instructions { display: flex; align-items: flex-start; gap: 13px; margin: 24px 0 22px; padding: 15px 16px; color: #d7c4a8; background: rgba(190, 135, 69, .09); border: 1px solid rgba(190, 135, 69, .32); border-radius: 5px; }
+.password-reset-instruction-icon { display: grid; flex: none; place-items: center; width: 30px; height: 30px; color: #e5b16f; background: #34291f; border: 1px solid #614c34; border-radius: 4px; }
+.password-reset-instructions p { margin: 1px 0 0; font-size: 12px; line-height: 1.65; }
+.password-reset-instructions strong { color: #f3d19e; }
+.password-reset-form { display: grid; grid-template-columns: 1fr 1fr; gap: 17px 14px; }
+.password-reset-form > .field-wrap:first-child, .password-reset-form > .form-error, .password-reset-form > .password-reset-submit { grid-column: 1 / -1; }
+.password-reset-form .field-label { color: #c2b7a4; font-size: 10px; }
+.password-reset-input { position: relative; display: flex; align-items: center; }
+.password-reset-input input { height: 54px; padding: 0 50px 0 14px !important; color: #f2eee7 !important; background: #111418 !important; border: 1px solid #42413d !important; border-radius: 4px !important; font: 14px var(--app-font-sans) !important; }
+.password-reset-input input:focus { border-color: #d49a54 !important; box-shadow: 0 0 0 3px rgba(212, 154, 84, .13) !important; }
+.password-reset-input .icon-button { position: absolute; right: 5px; width: 40px; height: 40px; color: #aaa49a; }
+.password-reset-submit { width: 100%; min-height: 54px; margin-top: 4px; color: #1a1712; background: linear-gradient(135deg, #e5b66f, #cf8f4f); border-color: #e4b56d; font-size: 13px; }
+.password-reset-submit:hover:not(:disabled) { background: linear-gradient(135deg, #f0c47d, #dc9d58); }
+.password-reset-submit:disabled { color: #231e17; opacity: .72; }
+.password-reset-footnote { display: flex; align-items: center; gap: 8px; margin-top: 22px; padding-top: 17px; color: #999388; border-top: 1px solid #353531; font-size: 11px; }
+.password-reset-footnote svg { flex: none; color: #c9a26a; }
+@media (max-width: 620px) {
+  .password-reset-page { align-items: start; padding: 12px; }
+  .password-reset-card { padding: 23px 18px; }
+  .password-reset-status { margin-top: 27px; font-size: 9px; }
+  .password-reset-lead { font-size: 12px; }
+  .password-reset-instructions { margin: 20px 0; padding: 12px; }
+  .password-reset-instructions p { font-size: 11px; }
+  .password-reset-form { grid-template-columns: 1fr; gap: 14px; }
+  .password-reset-form > .field-wrap:first-child, .password-reset-form > .form-error, .password-reset-form > .password-reset-submit { grid-column: auto; }
+  .password-reset-submit { padding: 0 10px; font-size: 11px; }
+}
