@@ -10,6 +10,8 @@ import {
 import {
   db,
   disciplineTable,
+  eventSubmissionFilesTable,
+  eventSubmissionsTable,
   standardAssignmentsTable,
   standardSubmissionFilesTable,
   standardSubmissionsTable,
@@ -209,6 +211,25 @@ router.get(
           ),
         )
         .limit(1);
+      const [eventFile] = await db
+        .select({ id: eventSubmissionFilesTable.id })
+        .from(eventSubmissionFilesTable)
+        .innerJoin(
+          eventSubmissionsTable,
+          eq(
+            eventSubmissionFilesTable.submissionId,
+            eventSubmissionsTable.id,
+          ),
+        )
+        .where(
+          and(
+            eq(eventSubmissionFilesTable.uploadId, upload.id),
+            isManager
+              ? undefined
+              : eq(eventSubmissionsTable.memberId, viewer.id),
+          ),
+        )
+        .limit(1);
       const [legacyTask] = await db
         .select({ id: tasksTable.id })
         .from(tasksTable)
@@ -231,7 +252,7 @@ router.get(
         .limit(1);
       const canRead =
         upload.memberId === viewer.id ||
-        Boolean(standardFile || taskFile || legacyTask || legacyDiscipline);
+        Boolean(standardFile || taskFile || eventFile || legacyTask || legacyDiscipline);
       if (!canRead) {
         res.status(403).json({ error: "Нет доступа к этому файлу." });
         return;

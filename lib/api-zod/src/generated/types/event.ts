@@ -12,7 +12,8 @@ export interface Event {
   title: string;
   description: string;
   startsAt: Date;
-  location: string;
+  /** @nullable */
+  endsAt: Date | null;
   status: EventStatus;
   createdAt: Date;
 }

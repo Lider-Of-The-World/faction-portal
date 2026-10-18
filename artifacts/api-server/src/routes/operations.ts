@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, lte, ne, sql } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import {
   CreateEventBody,
@@ -34,8 +34,21 @@ function isUniqueConstraintViolation(error: unknown): boolean {
   );
 }
 
-router.get("/events", requireReadyAuth, async (_req, res): Promise<void> => {
-  const rows = await db.select().from(eventsTable).orderBy(desc(eventsTable.startsAt));
+router.get("/events", requireReadyAuth, async (req, res): Promise<void> => {
+  const viewer = req.factionUser!;
+  const now = new Date();
+  const rows = await db
+    .select()
+    .from(eventsTable)
+    .where(
+      viewer.role === "employee"
+        ? and(
+            ne(eventsTable.status, "cancelled"),
+            lte(eventsTable.startsAt, now),
+          )
+        : undefined,
+    )
+    .orderBy(desc(eventsTable.startsAt));
   res.json(ListEventsResponse.parse(rows));
 });
 
@@ -43,7 +56,11 @@ router.post("/events", requireReadyAuth, async (req, res): Promise<void> => {
   if (!requireManager(req, res)) return;
   const parsed = CreateEventBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Проверьте название, описание, дату и место." });
+    res.status(400).json({ error: "Проверьте название, описание и время мероприятия." });
+    return;
+  }
+  if (parsed.data.endsAt <= parsed.data.startsAt) {
+    res.status(400).json({ error: "Время окончания должно быть позже времени начала." });
     return;
   }
   const [event] = await db.transaction(async (tx) => {
@@ -63,7 +80,7 @@ router.post("/events", requireReadyAuth, async (req, res): Promise<void> => {
       details: {
         description: row.description,
         startsAt: row.startsAt,
-        location: row.location,
+        endsAt: row.endsAt,
         status: row.status,
       },
     });
@@ -83,6 +100,14 @@ router.patch(
       res.status(400).json({ error: "Некорректные данные мероприятия." });
       return;
     }
+    if (
+      body.data.startsAt &&
+      body.data.endsAt &&
+      body.data.endsAt <= body.data.startsAt
+    ) {
+      res.status(400).json({ error: "Время окончания должно быть позже времени начала." });
+      return;
+    }
     const event = await db.transaction(async (tx) => {
       await tx.execute(
         sql`SELECT id FROM faction_events WHERE id = ${params.data.id} FOR UPDATE`,
@@ -93,6 +118,13 @@ router.patch(
         .where(eq(eventsTable.id, params.data.id))
         .limit(1);
       if (!current) return undefined;
+      if (body.data.startsAt || body.data.endsAt) {
+        const nextStartsAt = body.data.startsAt ?? current.startsAt;
+        const nextEndsAt = body.data.endsAt ?? current.endsAt;
+        if (!nextEndsAt || nextEndsAt <= nextStartsAt) {
+          return { invalidSchedule: true as const };
+        }
+      }
       const [updated] = await tx
         .update(eventsTable)
         .set(body.data)
@@ -112,20 +144,24 @@ router.patch(
             title: current.title,
             description: current.description,
             startsAt: current.startsAt,
-            location: current.location,
+            endsAt: current.endsAt,
             status: current.status,
           },
           after: {
             title: updated.title,
             description: updated.description,
             startsAt: updated.startsAt,
-            location: updated.location,
+            endsAt: updated.endsAt,
             status: updated.status,
           },
         },
       });
       return updated;
     });
+    if (event && "invalidSchedule" in event) {
+      res.status(400).json({ error: "Время окончания должно быть позже времени начала." });
+      return;
+    }
     if (!event) {
       res.status(404).json({ error: "Мероприятие не найдено." });
       return;

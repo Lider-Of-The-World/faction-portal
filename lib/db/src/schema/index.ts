@@ -19,6 +19,7 @@
 
 export * from "./members";
 export * from "./events";
+export * from "./event-submissions";
 export * from "./notifications";
 export * from "./standards";
 export * from "./standard-assignments";

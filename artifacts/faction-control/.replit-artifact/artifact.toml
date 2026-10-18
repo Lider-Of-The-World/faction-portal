@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Штаб фракции"
+description = "Веб-приложение для фракции: сотрудники, звания, отдельные нормативы по званиям, поручения, мероприятия и контроль результатов."
+version = "1.0.0"
+id = "artifacts/faction-control"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22601
+
+[services.development]
+run = "pnpm --filter @workspace/faction-control run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/faction-control", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/faction-control/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22601"
+BASE_PATH = "/"

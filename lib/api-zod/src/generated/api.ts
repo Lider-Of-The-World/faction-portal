@@ -107,7 +107,7 @@ export const GetDashboardResponse = zod.object({
   "title": zod.string(),
   "description": zod.string(),
   "startsAt": zod.coerce.date(),
-  "location": zod.string(),
+  "endsAt": zod.coerce.date().nullable(),
   "status": zod.enum(['planned', 'completed', 'cancelled']),
   "createdAt": zod.coerce.date()
 })),
@@ -223,7 +223,7 @@ export const ListEventsResponseItem = zod.object({
   "title": zod.string(),
   "description": zod.string(),
   "startsAt": zod.coerce.date(),
-  "location": zod.string(),
+  "endsAt": zod.coerce.date().nullable(),
   "status": zod.enum(['planned', 'completed', 'cancelled']),
   "createdAt": zod.coerce.date()
 })
@@ -237,15 +237,13 @@ export const createEventBodyTitleMax = 160;
 
 export const createEventBodyDescriptionMax = 4000;
 
-export const createEventBodyLocationMax = 240;
-
 
 
 export const CreateEventBody = zod.object({
   "title": zod.string().min(1).max(createEventBodyTitleMax),
   "description": zod.string().max(createEventBodyDescriptionMax),
   "startsAt": zod.coerce.date(),
-  "location": zod.string().max(createEventBodyLocationMax)
+  "endsAt": zod.coerce.date()
 })
 
 export const CreateEventResponse = zod.object({
@@ -253,7 +251,7 @@ export const CreateEventResponse = zod.object({
   "title": zod.string(),
   "description": zod.string(),
   "startsAt": zod.coerce.date(),
-  "location": zod.string(),
+  "endsAt": zod.coerce.date().nullable(),
   "status": zod.enum(['planned', 'completed', 'cancelled']),
   "createdAt": zod.coerce.date()
 })
@@ -270,15 +268,13 @@ export const updateEventBodyTitleMax = 160;
 
 export const updateEventBodyDescriptionMax = 4000;
 
-export const updateEventBodyLocationMax = 240;
-
 
 
 export const UpdateEventBody = zod.object({
   "title": zod.string().min(1).max(updateEventBodyTitleMax).optional(),
   "description": zod.string().max(updateEventBodyDescriptionMax).optional(),
   "startsAt": zod.coerce.date().optional(),
-  "location": zod.string().max(updateEventBodyLocationMax).optional(),
+  "endsAt": zod.coerce.date().optional(),
   "status": zod.enum(['planned', 'completed', 'cancelled']).optional()
 })
 
@@ -287,7 +283,7 @@ export const UpdateEventResponse = zod.object({
   "title": zod.string(),
   "description": zod.string(),
   "startsAt": zod.coerce.date(),
-  "location": zod.string(),
+  "endsAt": zod.coerce.date().nullable(),
   "status": zod.enum(['planned', 'completed', 'cancelled']),
   "createdAt": zod.coerce.date()
 })
@@ -302,6 +298,120 @@ export const DeleteEventParams = zod.object({
 
 export const DeleteEventResponse = zod.object({
   "ok": zod.boolean()
+})
+
+
+/**
+ * @summary Отчёты по мероприятию (сотруднику доступны только его отчёты)
+ */
+export const ListEventSubmissionsParams = zod.object({
+  "id": zod.coerce.string().uuid()
+})
+
+export const ListEventSubmissionsResponseItem = zod.object({
+  "id": zod.string().uuid(),
+  "eventId": zod.string().uuid(),
+  "memberId": zod.string().uuid(),
+  "memberNickname": zod.string(),
+  "version": zod.number().int(),
+  "comment": zod.string(),
+  "status": zod.enum(['pending_review', 'approved', 'rejected', 'revision_required']),
+  "decisionReason": zod.string().nullable(),
+  "submittedAt": zod.coerce.date(),
+  "reviewedAt": zod.coerce.date().nullable(),
+  "reviewerId": zod.string().uuid().nullable(),
+  "reviewerNickname": zod.string().nullable(),
+  "files": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "objectPath": zod.string(),
+  "originalName": zod.string(),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp']),
+  "size": zod.number().int(),
+  "verificationStatus": zod.enum(['pending', 'verified', 'rejected'])
+}))
+})
+export const ListEventSubmissionsResponse = zod.array(ListEventSubmissionsResponseItem)
+
+
+/**
+ * @summary Отправить скриншоты отчёта по мероприятию
+ */
+export const SubmitEventSubmissionParams = zod.object({
+  "id": zod.coerce.string().uuid()
+})
+
+export const submitEventSubmissionBodyCommentMax = 2000;
+
+export const submitEventSubmissionBodyUploadIdsMax = 50;
+
+
+
+export const SubmitEventSubmissionBody = zod.object({
+  "comment": zod.string().max(submitEventSubmissionBodyCommentMax),
+  "uploadIds": zod.array(zod.string().uuid()).min(1).max(submitEventSubmissionBodyUploadIdsMax)
+})
+
+export const SubmitEventSubmissionResponse = zod.object({
+  "id": zod.string().uuid(),
+  "eventId": zod.string().uuid(),
+  "memberId": zod.string().uuid(),
+  "memberNickname": zod.string(),
+  "version": zod.number().int(),
+  "comment": zod.string(),
+  "status": zod.enum(['pending_review', 'approved', 'rejected', 'revision_required']),
+  "decisionReason": zod.string().nullable(),
+  "submittedAt": zod.coerce.date(),
+  "reviewedAt": zod.coerce.date().nullable(),
+  "reviewerId": zod.string().uuid().nullable(),
+  "reviewerNickname": zod.string().nullable(),
+  "files": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "objectPath": zod.string(),
+  "originalName": zod.string(),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp']),
+  "size": zod.number().int(),
+  "verificationStatus": zod.enum(['pending', 'verified', 'rejected'])
+}))
+})
+
+
+/**
+ * @summary Проверить отчёт по мероприятию
+ */
+export const ReviewEventSubmissionParams = zod.object({
+  "id": zod.coerce.string().uuid()
+})
+
+export const reviewEventSubmissionBodyReasonMax = 2000;
+
+
+
+export const ReviewEventSubmissionBody = zod.object({
+  "status": zod.enum(['approved', 'rejected', 'revision_required']),
+  "reason": zod.string().max(reviewEventSubmissionBodyReasonMax).optional()
+})
+
+export const ReviewEventSubmissionResponse = zod.object({
+  "id": zod.string().uuid(),
+  "eventId": zod.string().uuid(),
+  "memberId": zod.string().uuid(),
+  "memberNickname": zod.string(),
+  "version": zod.number().int(),
+  "comment": zod.string(),
+  "status": zod.enum(['pending_review', 'approved', 'rejected', 'revision_required']),
+  "decisionReason": zod.string().nullable(),
+  "submittedAt": zod.coerce.date(),
+  "reviewedAt": zod.coerce.date().nullable(),
+  "reviewerId": zod.string().uuid().nullable(),
+  "reviewerNickname": zod.string().nullable(),
+  "files": zod.array(zod.object({
+  "id": zod.string().uuid(),
+  "objectPath": zod.string(),
+  "originalName": zod.string(),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp']),
+  "size": zod.number().int(),
+  "verificationStatus": zod.enum(['pending', 'verified', 'rejected'])
+}))
 })
 
 

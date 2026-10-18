@@ -301,6 +301,76 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OkResponse"
+  /events/{id}/submissions:
+    get:
+      operationId: listEventSubmissions
+      tags: [events]
+      summary: Отчёты по мероприятию (сотруднику доступны только его отчёты)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Отчёты по мероприятию
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EventSubmission"
+    post:
+      operationId: submitEventSubmission
+      tags: [events]
+      summary: Отправить скриншоты отчёта по мероприятию
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventSubmissionInput"
+      responses:
+        "201":
+          description: Отчёт отправлен на проверку
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventSubmission"
+  /event-submissions/{id}/review:
+    patch:
+      operationId: reviewEventSubmission
+      tags: [events]
+      summary: Проверить отчёт по мероприятию
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventSubmissionReviewInput"
+      responses:
+        "200":
+          description: Решение по отчёту сохранено
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventSubmission"
   /standards:
     get:
       operationId: listStandards
@@ -903,30 +973,30 @@ components:
       enum: [planned, completed, cancelled]
     Event:
       type: object
-      required: [id, title, description, startsAt, location, status, createdAt]
+      required: [id, title, description, startsAt, endsAt, status, createdAt]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
         description: { type: string }
         startsAt: { type: string, format: date-time }
-        location: { type: string }
+        endsAt: { type: ["string", "null"], format: date-time }
         status: { $ref: "#/components/schemas/EventStatus" }
         createdAt: { type: string, format: date-time }
     EventInput:
       type: object
-      required: [title, description, startsAt, location]
+      required: [title, description, startsAt, endsAt]
       properties:
         title: { type: string, minLength: 1, maxLength: 160 }
         description: { type: string, maxLength: 4000 }
         startsAt: { type: string, format: date-time }
-        location: { type: string, maxLength: 240 }
+        endsAt: { type: string, format: date-time }
     EventUpdate:
       type: object
       properties:
         title: { type: string, minLength: 1, maxLength: 160 }
         description: { type: string, maxLength: 4000 }
         startsAt: { type: string, format: date-time }
-        location: { type: string, maxLength: 240 }
+        endsAt: { type: string, format: date-time }
         status: { $ref: "#/components/schemas/EventStatus" }
     Standard:
       type: object
@@ -1043,6 +1113,43 @@ components:
         files:
           type: array
           items: { $ref: "#/components/schemas/SubmissionFile" }
+    EventSubmission:
+      type: object
+      required: [id, eventId, memberId, memberNickname, version, comment, status, decisionReason, submittedAt, reviewedAt, reviewerId, reviewerNickname, files]
+      properties:
+        id: { type: string, format: uuid }
+        eventId: { type: string, format: uuid }
+        memberId: { type: string, format: uuid }
+        memberNickname: { type: string }
+        version: { type: integer }
+        comment: { type: string }
+        status: { $ref: "#/components/schemas/SubmissionStatus" }
+        decisionReason: { type: ["string", "null"] }
+        submittedAt: { type: string, format: date-time }
+        reviewedAt: { type: ["string", "null"], format: date-time }
+        reviewerId: { type: ["string", "null"], format: uuid }
+        reviewerNickname: { type: ["string", "null"] }
+        files:
+          type: array
+          items: { $ref: "#/components/schemas/SubmissionFile" }
+    EventSubmissionInput:
+      type: object
+      required: [comment, uploadIds]
+      properties:
+        comment: { type: string, maxLength: 2000 }
+        uploadIds:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { type: string, format: uuid }
+    EventSubmissionReviewInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [approved, rejected, revision_required]
+        reason: { type: string, maxLength: 2000 }
     StandardSubmissionInput:
       type: object
       required: [comment, uploadIds]

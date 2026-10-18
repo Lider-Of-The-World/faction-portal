@@ -88,7 +88,8 @@ export interface Event {
   title: string;
   description: string;
   startsAt: string;
-  location: string;
+  /** @nullable */
+  endsAt: string | null;
   status: EventStatus;
   createdAt: string;
 }
@@ -212,8 +213,7 @@ export interface EventInput {
   /** @maxLength 4000 */
   description: string;
   startsAt: string;
-  /** @maxLength 240 */
-  location: string;
+  endsAt: string;
 }
 
 export interface EventUpdate {
@@ -225,8 +225,7 @@ export interface EventUpdate {
   /** @maxLength 4000 */
   description?: string;
   startsAt?: string;
-  /** @maxLength 240 */
-  location?: string;
+  endsAt?: string;
   status?: EventStatus;
 }
 
@@ -427,6 +426,51 @@ export interface TaskSubmission {
   /** @nullable */
   reviewerNickname: string | null;
   files: SubmissionFile[];
+}
+
+export interface EventSubmission {
+  id: string;
+  eventId: string;
+  memberId: string;
+  memberNickname: string;
+  version: number;
+  comment: string;
+  status: SubmissionStatus;
+  /** @nullable */
+  decisionReason: string | null;
+  submittedAt: string;
+  /** @nullable */
+  reviewedAt: string | null;
+  /** @nullable */
+  reviewerId: string | null;
+  /** @nullable */
+  reviewerNickname: string | null;
+  files: SubmissionFile[];
+}
+
+export interface EventSubmissionInput {
+  /** @maxLength 2000 */
+  comment: string;
+  /**
+     * @minItems 1
+     * @maxItems 50
+     */
+  uploadIds: string[];
+}
+
+export type EventSubmissionReviewInputStatus = typeof EventSubmissionReviewInputStatus[keyof typeof EventSubmissionReviewInputStatus];
+
+
+export const EventSubmissionReviewInputStatus = {
+  approved: 'approved',
+  rejected: 'rejected',
+  revision_required: 'revision_required',
+} as const;
+
+export interface EventSubmissionReviewInput {
+  status: EventSubmissionReviewInputStatus;
+  /** @maxLength 2000 */
+  reason?: string;
 }
 
 export interface StandardSubmissionInput {

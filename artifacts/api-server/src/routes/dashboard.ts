@@ -3,9 +3,11 @@ import {
   count,
   desc,
   eq,
+  gt,
   gte,
   inArray,
   isNull,
+  lte,
   lt,
   ne,
   notInArray,
@@ -111,6 +113,15 @@ router.get("/dashboard", requireReadyAuth, async (req, res): Promise<void> => {
   const recentEvents = await db
     .select()
     .from(eventsTable)
+    .where(
+      employeeOnly
+        ? and(
+            eq(eventsTable.status, "planned"),
+            lte(eventsTable.startsAt, now),
+            gt(eventsTable.endsAt, now),
+          )
+        : undefined,
+    )
     .orderBy(desc(eventsTable.startsAt))
     .limit(5);
   const recentTaskRows = await db

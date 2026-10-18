@@ -16,7 +16,6 @@ export interface EventUpdate {
   /** @maxLength 4000 */
   description?: string;
   startsAt?: Date;
-  /** @maxLength 240 */
-  location?: string;
+  endsAt?: Date;
   status?: EventStatus;
 }

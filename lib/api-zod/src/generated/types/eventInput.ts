@@ -15,6 +15,5 @@ export interface EventInput {
   /** @maxLength 4000 */
   description: string;
   startsAt: Date;
-  /** @maxLength 240 */
-  location: string;
+  endsAt: Date;
 }

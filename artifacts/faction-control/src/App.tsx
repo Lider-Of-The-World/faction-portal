@@ -5,7 +5,7 @@ import {
   Activity, ArrowUpRight, BookOpen, CalendarDays, Check, CheckCheck,
   ClipboardList, Clock3, FileImage, Flag, LayoutDashboard, LogOut, Menu, Plus,
   Search, Settings, Shield, ShieldAlert, Users, X, KeyRound, Eye, EyeOff,
-  Pencil, Trash2, MapPin, ListChecks, CircleAlert, LoaderCircle, Bell, Camera,
+  Pencil, Trash2, ListChecks, CircleAlert, LoaderCircle, Bell, Camera,
   Upload, History, Ban, ImagePlus, FileCheck2,
 } from 'lucide-react';
 import {
@@ -13,16 +13,16 @@ import {
   useCreateStandard, useCreateStandardAssignment, useCreateTask,
   useDeleteEvent, useDeleteMember, useDeleteStandard, useGetCurrentUser, getGetSetupStatusQueryKey,
   useGetDashboard, useGetSetupStatus, useHealthCheck,
-  useListEvents, useListMembers, useListStandards, useListStandardAssignments,
+  useListEventSubmissions, useListEvents, useListMembers, useListStandards, useListStandardAssignments,
   useListStandardSubmissions, useListTasks, useListTaskSubmissions, useListNotifications,
   useLogin, useLogout, useMarkAllNotificationsRead, useMarkNotificationRead,
   useRequestUploadUrl, useReviewStandardSubmission, useReviewTaskSubmission,
-  useSubmitStandard, useSubmitTask, useCancelTask, useUpdateEvent, useUpdateMember,
+  useReviewEventSubmission, useSubmitEventSubmission, useSubmitStandard, useSubmitTask, useCancelTask, useUpdateEvent, useUpdateMember,
   useUpdateStandard, getGetCurrentUserQueryKey, getGetDashboardQueryKey,
   getHealthCheckQueryKey, getListMembersQueryKey, getListEventsQueryKey,
   getListStandardsQueryKey, getListStandardAssignmentsQueryKey,
   getListStandardSubmissionsQueryKey, getListTasksQueryKey, getListTaskSubmissionsQueryKey,
-  getListNotificationsQueryKey,
+  getListEventSubmissionsQueryKey, getListNotificationsQueryKey,
 } from '@workspace/api-client-react';
 import {
   getDisciplineRecordsQueryKey,
@@ -30,7 +30,7 @@ import {
   type AuditCategory, type AuditLogEntry, type DisciplineRecord, type DisciplineType,
 } from './discipline-client';
 import type {
-  Event, Member, Standard, StandardAssignment, Task, SessionUser, Notification,
+  Event, EventSubmission, Member, Standard, StandardAssignment, Task, SessionUser, Notification,
   StandardSubmission, TaskSubmission, SubmissionFile,
 } from '@workspace/api-client-react';
 import NotFound from '@/pages/not-found';
@@ -50,6 +50,37 @@ const NAV_ITEMS = [
   { href: '/settings', label: 'Настройки', icon: Settings },
 ];
 const memberTitle = (role: string, rank: string) => role === 'leader' ? 'Лидер' : role === 'admin' ? 'Администратор' : rank;
+const REVIEW_RANKS = ['Вице-Губернатор', 'Депутат', 'Адвокат', 'Лицензер'] as const;
+
+function ReviewFilters({ nickname, rank, onNicknameChange, onRankChange, rankDisabled = false, rankHint }: {
+  nickname: string;
+  rank: string;
+  onNicknameChange: (value: string) => void;
+  onRankChange: (value: string) => void;
+  rankDisabled?: boolean;
+  rankHint?: string;
+}) {
+  return <div className="review-filters" aria-label="Фильтры отчётов">
+    <label className="field-inline-label">ПО НИКУ
+      <input type="search" value={nickname} onChange={(event) => onNicknameChange(event.target.value)} placeholder="Введите ник сотрудника" />
+    </label>
+    <label className="field-inline-label">ПО ЗВАНИЮ
+      <select value={rank} onChange={(event) => onRankChange(event.target.value)} disabled={rankDisabled}>
+        <option value="">Все звания</option>
+        {REVIEW_RANKS.map((rankOption) => <option key={rankOption} value={rankOption}>{rankOption}</option>)}
+      </select>
+    </label>
+    {rankHint && <span className="review-filter-hint" role="status">{rankHint}</span>}
+  </div>;
+}
+
+function matchesReviewFilters(nickname: string, memberId: string | null, membersById: ReadonlyMap<string, Member>, nicknameFilter: string, rankFilter: string) {
+  const normalizedFilter = nicknameFilter.trim().toLocaleLowerCase('ru-RU');
+  if (normalizedFilter && !nickname.toLocaleLowerCase('ru-RU').includes(normalizedFilter)) return false;
+  if (!rankFilter) return true;
+  const member = memberId ? membersById.get(memberId) : undefined;
+  return !!member && memberTitle(member.role, member.rank) === rankFilter;
+}
 const LABEL: Record<string, string> = {
   active: 'Активен', blocked: 'Заблокирован', removed: 'Исключён', planned: 'Запланировано', completed: 'Завершено',
   cancelled: 'Отменено', assigned: 'Назначено', in_progress: 'В работе', pending_review: 'На проверке',
@@ -91,7 +122,7 @@ function Router() {
     <Route path="/"><HomeRedirect /></Route>
     <Route path="/dashboard"><DashboardPage user={user} /></Route>
     <Route path="/members">{user.role !== 'employee' ? <MembersPage user={user} /> : <AccessDenied />}</Route>
-    <Route path="/events">{user.role !== 'employee' ? <EventsPage /> : <AccessDenied />}</Route>
+    <Route path="/events">{user.role !== 'employee' ? <EventsPage user={user} /> : <EmployeeEventsPage />}</Route>
     <Route path="/standards"><StandardsPage user={user} /></Route>
     <Route path="/tasks"><TasksPage user={user} /></Route>
     <Route path="/notifications"><NotificationsPage /></Route>
@@ -129,7 +160,8 @@ function Shell({ user, children }: { user: SessionUser; children: ReactNode }) {
   const [path] = useLocation(); const [mobileOpen, setMobileOpen] = useState(false); const qc = useQueryClient();
   const health = useHealthCheck({ query: { queryKey: getHealthCheckQueryKey(), refetchInterval: 60000 } });
   const { data: notifications } = useListNotifications({ query: { queryKey: getListNotificationsQueryKey(), refetchInterval: 60000 } });
-  const logout = useLogout(); const navItems = user.role === 'employee' ? NAV_ITEMS.filter((item) => !item.staff) : NAV_ITEMS;
+  const employeeEvents = useListEvents({ query: { queryKey: getListEventsQueryKey(), enabled: user.role === 'employee', refetchInterval: 30000 } });
+  const logout = useLogout(); const navItems = user.role === 'employee' ? NAV_ITEMS.filter((item) => !item.staff || (item.href === '/events' && !!employeeEvents.data?.length)) : NAV_ITEMS;
   const doLogout = () => logout.mutate(undefined, { onSuccess: () => { qc.removeQueries({ queryKey: getGetCurrentUserQueryKey() }); window.location.assign(import.meta.env.BASE_URL || '/'); } });
   return <div className="app-shell"><aside className={`sidebar ${mobileOpen ? 'sidebar-open' : ''}`}>
     <div className="sidebar-brand"><BrandLockup /><button className="icon-button mobile-close" aria-label="Закрыть меню" onClick={() => setMobileOpen(false)}><X size={18} /></button></div>
@@ -172,7 +204,7 @@ function DashboardPage({ user }: { user: SessionUser }) {
   return <><PageHeading eyebrow={`СМЕНА / ${memberTitle(user.role, user.rank).toUpperCase()}`} title={`Добрый день, ${user.nickname}.`} description="Сводка по сотрудникам, поручениям и нормативам Правительства области." action={<div className="date-stamp"><span>ТЕКУЩАЯ ДАТА</span><strong>{dateText(new Date().toISOString())}</strong></div>} />
     <div className="overview-banner"><div className="banner-copy"><div className="banner-kicker"><span className="status-pulse" /> ОПЕРАЦИОННЫЙ ОБЗОР</div><h2>Сводка управления</h2><p>Сроки поручений и нормативов отображаются отдельно от дисциплинарных решений.</p></div><div className="banner-ornament"><div className="ornament-ring ring-a" /><div className="ornament-ring ring-b" /><Shield size={52} /></div><div className="banner-index"><span>01</span><i /></div></div>
     <div className="stats-grid"><StatCard label="СОСТАВ" value={data.memberCount} note={`${data.activeMembers} активны`} icon={Users} /><StatCard label="ОТКРЫТЫЕ ПОРУЧЕНИЯ" value={data.openTasks} note="В работе у команды" icon={ListChecks} accent /><StatCard label="НОРМАТИВЫ НА ПРОВЕРКЕ" value={data.pendingStandards} note={`${data.pendingTaskReviews} поручений ожидают оценки`} icon={BookOpen} /></div>
-    <div className="dashboard-columns"><Panel title="Ближайшие события" meta={`${data.recentEvents.length} В ЛЕНТЕ`}>{data.recentEvents.length ? <div className="activity-list">{data.recentEvents.map((ev) => <div className="activity-row" key={ev.id}><div className="activity-date"><strong>{new Date(ev.startsAt).getDate()}</strong><span>{new Intl.DateTimeFormat('ru-RU', { month: 'short' }).format(new Date(ev.startsAt)).toUpperCase()}</span></div><div className="activity-info"><strong>{ev.title}</strong><span><MapPin size={12} />{ev.location || 'Место уточняется'}</span></div><Badge status={ev.status} /></div>)}</div> : <EmptyState title="Событий пока нет" text="Назначенные мероприятия появятся здесь." />}<Link href="/events" className="panel-link">Все мероприятия <ArrowUpRight size={15} /></Link></Panel>
+    <div className="dashboard-columns"><Panel title="Ближайшие события" meta={`${data.recentEvents.length} В ЛЕНТЕ`}>{data.recentEvents.length ? <div className="activity-list">{data.recentEvents.map((ev) => <div className="activity-row" key={ev.id}><div className="activity-date"><strong>{new Date(ev.startsAt).getDate()}</strong><span>{new Intl.DateTimeFormat('ru-RU', { month: 'short' }).format(new Date(ev.startsAt)).toUpperCase()}</span></div><div className="activity-info"><strong>{ev.title}</strong><span><Clock3 size={12} />{dateText(ev.startsAt, true)}{ev.endsAt ? ` · до ${dateText(ev.endsAt, true)}` : ''}</span></div><Badge status={ev.status} /></div>)}</div> : <EmptyState title="Событий пока нет" text="Назначенные мероприятия появятся здесь." />}{(user.role !== 'employee' || data.recentEvents.length > 0) && <Link href="/events" className="panel-link">Все мероприятия <ArrowUpRight size={15} /></Link>}</Panel>
       <Panel title="На контроле" meta={`${data.recentTasks.length} ПОРУЧЕНИЙ`}>{data.recentTasks.length ? <div className="task-feed">{data.recentTasks.map((task) => <div className="task-feed-row" key={task.id}><div className={`priority-line priority-${task.priority}`} /><div className="task-feed-copy"><strong>{task.title}</strong><span>{task.assigneeNickname} · {LABEL[task.status]}</span></div><span className="task-feed-date">{dateText(task.dueAt)}</span></div>)}</div> : <EmptyState title="Поручений пока нет" text="Новые задачи появятся в этой ленте." />}<Link href="/tasks" className="panel-link">Открыть поручения <ArrowUpRight size={15} /></Link></Panel></div>
     <div className="dashboard-footnote"><span className="mono">ДАННЫЕ СИСТЕМЫ</span><span><span className="status-pulse" /> СИНХРОНИЗИРОВАНО</span></div>
   </>;
@@ -183,12 +215,19 @@ function StandardsPage({ user }: { user: SessionUser }) {
   const qc = useQueryClient(); const manager = user.role !== 'employee';
   const templates = useListStandards({ query: { queryKey: getListStandardsQueryKey(), enabled: manager, refetchOnMount: 'always' } });
   const assignments = useListStandardAssignments({ query: { queryKey: getListStandardAssignmentsQueryKey(), refetchOnMount: 'always' } });
+  const members = useListMembers({ query: { queryKey: getListMembersQueryKey(), enabled: manager } });
   const createStandard = useCreateStandard(); const updateStandard = useUpdateStandard(); const deleteStandard = useDeleteStandard();
   const [editing, setEditing] = useState<Standard | null>(null); const [templateOpen, setTemplateOpen] = useState(false);
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [submitTarget, setSubmitTarget] = useState<StandardAssignment | null>(null);
+  const [reviewNickname, setReviewNickname] = useState('');
+  const [reviewRank, setReviewRank] = useState('');
   const [templateError, setTemplateError] = useState('');
   const [deleteNotice, setDeleteNotice] = useState('');
+  const membersById = useMemo(() => new Map((members.data ?? []).map((member) => [member.id, member])), [members.data]);
+  const visibleAssignments = useMemo(() => (assignments.data ?? []).filter((assignment) =>
+    !manager || matchesReviewFilters(assignment.assigneeNickname, assignment.assigneeId, membersById, reviewNickname, reviewRank),
+  ), [assignments.data, manager, membersById, reviewNickname, reviewRank]);
   const saveTemplate = (payload: { title: string; description: string; requirements: string; category: string; target: number; unit: string; dailyRank: string | null }) => {
     const done = () => { invalidate(qc, getListStandardsQueryKey()); setTemplateOpen(false); setEditing(null); };
     setTemplateError('');
@@ -201,8 +240,9 @@ function StandardsPage({ user }: { user: SessionUser }) {
   return <><PageHeading eyebrow="СТАНДАРТЫ / ИСПОЛНЕНИЕ" title="Нормативы" description={manager ? 'Ежедневные нормативы по званиям и проверка результатов.' : 'Ваши назначенные нормативы и история подтверждений.'} action={manager && <button className="button button-primary" onClick={() => { setEditing(null); setTemplateError(''); setTemplateOpen(true); }}><Plus size={16} /> Новый норматив</button>} />
     {deleteNotice && <div className="form-success" role="status">{deleteNotice}</div>}
     {manager && <section className="template-zone"><div className="section-kicker"><span /> НОРМАТИВЫ <span className="section-rule" /></div>{!templates.data?.length ? <div className="empty-slim">Нормативов пока нет. Создайте норматив и укажите звание для ежедневного назначения.</div> : <div className="template-grid">{templates.data.map((s) => <article className="template-card" key={s.id}><div className="template-top"><span>{s.category}</span><div className="template-controls">{s.dailyRank && <span className="daily-badge">ЕЖЕДНЕВНО · {s.dailyRank}</span>}<button className="icon-button" title={`Изменить ${s.title}`} aria-label={`Изменить ${s.title}`} onClick={() => { setEditing(s); setTemplateError(''); setTemplateOpen(true); }}><Pencil size={14} /></button><button className="icon-button danger-icon" aria-label={`Удалить ${s.title}`} onClick={() => { if (confirm(`Удалить шаблон «${s.title}»? История уже назначенных нормативов останется сохранённой.`)) deleteStandard.mutate({ id: s.id }, { onSuccess: () => { invalidate(qc, getListStandardsQueryKey()); setDeleteNotice('Норматив удалён. История ранее назначенных заданий остаётся сохранённой.'); }, onError: (error) => alert(mutationErrorText(error, 'Не удалось удалить норматив.')) }); }}><Trash2 size={14} /></button></div></div><h3>{s.title}</h3><p>{s.description || s.requirements}</p><div className="template-target"><strong>{s.target}</strong><span>{s.unit}</span></div></article>)}</div>}</section>}
-    <div className="section-kicker assignments-kicker"><span /> {manager ? 'НАЗНАЧЕННАЯ РАБОТА' : 'МОИ НОРМАТИВЫ'} <span className="section-rule" /><span className="section-count">{assignments.data?.length ?? 0}</span></div>
-    {!assignments.data?.length ? <EmptyState title="Назначенных нормативов нет" text={manager ? 'Укажите звание в настройках норматива — ежедневное назначение будет сформировано для этого звания.' : 'Назначенные нормативы появятся здесь.'} /> : <div className="assignments-list">{assignments.data.map((a) => <AssignmentCard key={a.id} assignment={a} manager={manager} onSubmit={() => setSubmitTarget(a)} onHistory={() => setHistoryId(historyId === a.id ? null : a.id)} onReview={() => setHistoryId(a.id)} />)}</div>}
+    <div className="section-kicker assignments-kicker"><span /> {manager ? 'НАЗНАЧЕННАЯ РАБОТА' : 'МОИ НОРМАТИВЫ'} <span className="section-rule" /><span className="section-count">{visibleAssignments.length}</span></div>
+    {manager && <ReviewFilters nickname={reviewNickname} rank={reviewRank} onNicknameChange={setReviewNickname} onRankChange={setReviewRank} rankDisabled={members.isLoading || members.isError} rankHint={members.isLoading ? 'Загружаем список званий…' : members.isError ? 'Фильтр по званию временно недоступен.' : undefined} />}
+    {!visibleAssignments.length ? <EmptyState title={assignments.data?.length ? 'По фильтрам нормативов нет' : 'Назначенных нормативов нет'} text={assignments.data?.length ? 'Измените ник или звание, чтобы увидеть другие нормативы.' : manager ? 'Укажите звание в настройках норматива — ежедневное назначение будет сформировано для этого звания.' : 'Назначенные нормативы появятся здесь.'} /> : <div className="assignments-list">{visibleAssignments.map((a) => <AssignmentCard key={a.id} assignment={a} manager={manager} onSubmit={() => setSubmitTarget(a)} onHistory={() => setHistoryId(historyId === a.id ? null : a.id)} onReview={() => setHistoryId(a.id)} />)}</div>}
     {templateOpen && <Modal title={editing ? 'Изменить норматив' : 'Новый норматив'} subtitle="Ежедневное назначение можно связать с одним конкретным званием." onClose={() => { setTemplateOpen(false); setEditing(null); }}><StandardTemplateForm initial={editing} pending={createStandard.isPending || updateStandard.isPending} error={templateError} onCancel={() => { setTemplateOpen(false); setEditing(null); }} onSubmit={saveTemplate} /></Modal>}
     {submitTarget && <SubmitModal title="Отправить результат" detail={submitTarget.title} onClose={() => setSubmitTarget(null)} pendingHook="standard" id={submitTarget.id} onSubmitted={() => { invalidate(qc, getListStandardAssignmentsQueryKey()); setSubmitTarget(null); }} />}
     {historyId && <Modal title="Отправки и проверка" subtitle="История отправок, комментарии и решения руководства." onClose={() => setHistoryId(null)} className="history-modal"><StandardAssignmentHistory id={historyId} manager={manager} onClose={() => setHistoryId(null)} onReviewed={() => invalidate(qc, getListStandardAssignmentsQueryKey())} /></Modal>}
@@ -236,17 +276,17 @@ function FileGallery({ files }: { files: SubmissionFile[] }) {
   return <div className="evidence-gallery">{files.map((file) => <a key={file.id} className="evidence-thumb" href={`/api/storage${file.objectPath}`} target="_blank" rel="noreferrer"><img src={`/api/storage${file.objectPath}`} alt={file.originalName} /><span><FileImage size={12} />{file.originalName}</span></a>)}</div>;
 }
 
-function SubmitModal({ title, detail, onClose, onSubmitted, id, pendingHook }: { title: string; detail: string; onClose: () => void; onSubmitted: () => void; id: string; pendingHook: 'standard' | 'task' }) {
-  const qc = useQueryClient(); const upload = useRequestUploadUrl(); const standardSubmit = useSubmitStandard(); const taskSubmit = useSubmitTask();
+function SubmitModal({ title, detail, onClose, onSubmitted, id, pendingHook }: { title: string; detail: string; onClose: () => void; onSubmitted: () => void; id: string; pendingHook: 'standard' | 'task' | 'event' }) {
+  const qc = useQueryClient(); const upload = useRequestUploadUrl(); const standardSubmit = useSubmitStandard(); const taskSubmit = useSubmitTask(); const eventSubmit = useSubmitEventSubmission();
   const submitLock = useRef(false);
-  const [files, setFiles] = useState<File[]>([]); const [comment, setComment] = useState(''); const [error, setError] = useState(''); const busy = upload.isPending || standardSubmit.isPending || taskSubmit.isPending;
+  const [files, setFiles] = useState<File[]>([]); const [comment, setComment] = useState(''); const [error, setError] = useState(''); const busy = upload.isPending || standardSubmit.isPending || taskSubmit.isPending || eventSubmit.isPending;
   const [sendPhase, setSendPhase] = useState<'idle' | 'uploading' | 'submitting'>('idle'); const [uploadedCount, setUploadedCount] = useState(0);
-  const isBusy = busy || sendPhase !== 'idle';
+  const isBusy = busy || eventSubmit.isPending || sendPhase !== 'idle';
   const previews = useMemo(() => files.map((file) => ({ file, url: URL.createObjectURL(file) })), [files]);
   useEffect(() => () => previews.forEach(({ url }) => URL.revokeObjectURL(url)), [previews]);
   const addFiles = (list: FileList | null) => {
     if (!list) return; const next = Array.from(list); const valid: File[] = []; let issue = '';
-    for (const f of next) { if (!imageTypes.includes(f.type)) issue = `${f.name}: используйте JPG, PNG или WebP.`; else if (f.size > maxImageSize) issue = `${f.name}: размер больше 25 МБ.`; else valid.push(f); }
+    for (const f of next) { if (files.length + valid.length >= 50) { issue = 'Можно прикрепить не более 50 скриншотов.'; break; } if (!imageTypes.includes(f.type)) issue = `${f.name}: используйте JPG, PNG или WebP.`; else if (f.size > maxImageSize) issue = `${f.name}: размер больше 25 МБ.`; else valid.push(f); }
     if (issue) setError(issue); else setError(''); setFiles((current) => [...current, ...valid]);
   };
   const send = async (e: FormEvent) => {
@@ -273,10 +313,11 @@ function SubmitModal({ title, detail, onClose, onSubmitted, id, pendingHook }: {
       const payload = { comment: comment.trim(), uploadIds };
       setSendPhase('submitting');
       if (pendingHook === 'standard') await standardSubmit.mutateAsync({ id, data: payload });
-      else await taskSubmit.mutateAsync({ id, data: payload });
+      else if (pendingHook === 'task') await taskSubmit.mutateAsync({ id, data: payload });
+      else await eventSubmit.mutateAsync({ id, data: payload });
       const queryKeys = [
-        pendingHook === 'standard' ? getListStandardAssignmentsQueryKey() : getListTasksQueryKey(),
-        pendingHook === 'standard' ? getListStandardSubmissionsQueryKey(id) : getListTaskSubmissionsQueryKey(id),
+        pendingHook === 'standard' ? getListStandardAssignmentsQueryKey() : pendingHook === 'task' ? getListTasksQueryKey() : getListEventsQueryKey(),
+        pendingHook === 'standard' ? getListStandardSubmissionsQueryKey(id) : pendingHook === 'task' ? getListTaskSubmissionsQueryKey(id) : getListEventSubmissionsQueryKey(id),
       ];
       invalidate(qc, ...queryKeys);
       onSubmitted();
@@ -290,7 +331,7 @@ function SubmitModal({ title, detail, onClose, onSubmitted, id, pendingHook }: {
   const submitLabel = sendPhase === 'uploading' ? `Загружаем скриншоты… ${uploadedCount}/${files.length}` : sendPhase === 'submitting' ? 'Отправляем отчёт…' : 'Отправить на проверку';
   return <Modal title={title} subtitle={detail} onClose={onClose} closeDisabled={isBusy} className="upload-modal"><form className="dialog-form" onSubmit={send} aria-busy={isBusy}>
     <div className="upload-instruction"><Camera size={19} /><div><strong>Подтвердите выполнение скриншотами</strong><span>Изображения JPG, PNG или WebP · до 25 МБ каждое · количество не ограничено</span></div></div>
-    <label className="file-drop upload-drop"><ImagePlus size={22} /><strong>Выбрать скриншоты</strong><span>Выберите изображения из галереи или файлов</span><input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(e) => { addFiles(e.target.files); e.currentTarget.value = ''; }} disabled={busy} data-testid="input-submission-images" /></label>
+    <label className="file-drop upload-drop"><ImagePlus size={22} /><strong>Выбрать скриншоты</strong><span>Выберите изображения из галереи или файлов</span><input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(e) => { addFiles(e.target.files); e.currentTarget.value = ''; }} disabled={isBusy} data-testid="input-submission-images" /></label>
     {!!files.length && <div className="local-preview-grid">{previews.map(({ file, url }, index) => <div className="local-preview" key={`${file.name}-${index}`}><img src={url} alt={file.name} /><button type="button" aria-label={`Убрать ${file.name}`} onClick={() => setFiles((f) => f.filter((_, i) => i !== index))}><X size={13} /></button><span>{file.name}</span></div>)}</div>}
      <Field label={pendingHook === 'standard' ? 'Комментарий к результату (обязательно)' : 'Комментарий к отправке'}><textarea value={comment} onChange={(e) => setComment(e.target.value)} maxLength={2000} rows={3} required={pendingHook === 'standard'} placeholder="Что важно проверить?" /></Field>{error && <div className="form-error" role="alert">{error}</div>}
     <div className="dialog-actions"><button type="button" className="button button-secondary" onClick={onClose} disabled={isBusy}>Отмена</button><button className="button button-primary" disabled={isBusy || !files.length}><Upload size={15} />{submitLabel}</button></div>
@@ -303,7 +344,14 @@ function TasksPage({ user }: { user: SessionUser }) {
   const members = useListMembers({ query: { queryKey: getListMembersQueryKey(), enabled: manager } });
   const create = useCreateTask(); const cancelTask = useCancelTask();
   const [filter, setFilter] = useState('all'); const [createOpen, setCreateOpen] = useState(false); const [submissionFor, setSubmissionFor] = useState<Task | null>(null); const [historyFor, setHistoryFor] = useState<string | null>(null); const [cancelFor, setCancelFor] = useState<Task | null>(null);
-  const tasks = useMemo(() => (list.data ?? []).filter((t) => filter === 'all' || t.status === filter), [list.data, filter]);
+  const [reviewNickname, setReviewNickname] = useState('');
+  const [reviewRank, setReviewRank] = useState('');
+  const membersById = useMemo(() => new Map((members.data ?? []).map((member) => [member.id, member])), [members.data]);
+  const tasks = useMemo(() => (list.data ?? []).filter((task) =>
+    (filter === 'all' || task.status === filter) &&
+    (!manager || matchesReviewFilters(task.assigneeNickname ?? '', task.assigneeId, membersById, reviewNickname, reviewRank)),
+  ), [list.data, filter, manager, membersById, reviewNickname, reviewRank]);
+  const hasReviewFilters = !!reviewNickname.trim() || !!reviewRank;
   const save = (payload: { title: string; description: string; reason: string; assigneeId: string; priority: 'low' | 'normal' | 'high' | 'urgent'; dueAt: string }) => create.mutate({ data: { ...payload, dueAt: new Date(payload.dueAt).toISOString() } }, { onSuccess: () => { invalidate(qc, getListTasksQueryKey()); setCreateOpen(false); }, onError: () => alert('Не удалось создать поручение.') });
   const cancel = (reason: string) => { if (!cancelFor) return; cancelTask.mutate({ id: cancelFor.id, data: { reason } }, { onSuccess: () => { invalidate(qc, getListTasksQueryKey()); setCancelFor(null); }, onError: () => alert('Не удалось отменить поручение.') }); };
   if (list.isLoading) return <PageSkeleton />;
@@ -311,7 +359,8 @@ function TasksPage({ user }: { user: SessionUser }) {
   const filters = [['all', 'Все'], ['assigned', 'Назначено'], ['in_progress', 'В работе'], ['pending_review', 'На проверке'], ['revision_required', 'Доработка'], ['approved', 'Приняты'] ];
   return <><PageHeading eyebrow={manager ? 'ИСПОЛНЕНИЕ / КОНТРОЛЬ' : 'МОЯ СМЕНА / ПОРУЧЕНИЯ'} title="Поручения" description={manager ? 'Назначайте задачи, проверяйте доказательства и сохраняйте историю решений.' : 'Выполняйте служебные задачи и отправляйте подтверждения на проверку.'} action={manager && <button className="button button-primary" onClick={() => setCreateOpen(true)}><Plus size={16} /> Новое поручение</button>} />
     <div className="filter-tabs" role="tablist" aria-label="Фильтр поручений">{filters.map(([key, label]) => <button key={key} className={filter === key ? 'selected' : ''} onClick={() => setFilter(key)} role="tab" aria-selected={filter === key}>{label}</button>)}</div>
-    {!tasks.length ? <EmptyState title={filter === 'all' ? 'Поручений пока нет' : 'В этой категории пусто'} text={manager ? 'Создайте задачу с исполнителем и понятным основанием.' : 'Новые поручения появятся здесь.'} action={manager && filter === 'all' && <button className="button button-primary" onClick={() => setCreateOpen(true)}><Plus size={16} /> Создать поручение</button>} /> : <div className="tasks-list">{tasks.map((task) => <TaskCard key={task.id} task={task} manager={manager} onSubmit={() => setSubmissionFor(task)} onHistory={() => setHistoryFor(task.id)} onCancel={() => setCancelFor(task)} />)}</div>}
+    {manager && <ReviewFilters nickname={reviewNickname} rank={reviewRank} onNicknameChange={setReviewNickname} onRankChange={setReviewRank} rankDisabled={members.isLoading || members.isError} rankHint={members.isLoading ? 'Загружаем список званий…' : members.isError ? 'Фильтр по званию временно недоступен.' : undefined} />}
+    {!tasks.length ? <EmptyState title={hasReviewFilters ? 'По фильтрам поручений ничего не найдено' : filter === 'all' ? 'Поручений пока нет' : 'В этой категории пусто'} text={hasReviewFilters ? 'Измените ник или звание, чтобы увидеть другие поручения.' : manager ? 'Создайте задачу с исполнителем и понятным основанием.' : 'Новые поручения появятся здесь.'} action={manager && filter === 'all' && !hasReviewFilters && <button className="button button-primary" onClick={() => setCreateOpen(true)}><Plus size={16} /> Создать поручение</button>} /> : <div className="tasks-list">{tasks.map((task) => <TaskCard key={task.id} task={task} manager={manager} onSubmit={() => setSubmissionFor(task)} onHistory={() => setHistoryFor(task.id)} onCancel={() => setCancelFor(task)} />)}</div>}
     {createOpen && <Modal title="Новое поручение" subtitle="Укажите задачу, основание и срок исполнения." onClose={() => setCreateOpen(false)}><TaskCreateForm members={members.data ?? []} pending={create.isPending} onCancel={() => setCreateOpen(false)} onSubmit={save} /></Modal>}
     {submissionFor && <SubmitModal title="Отправить выполнение" detail={submissionFor.title} id={submissionFor.id} pendingHook="task" onClose={() => setSubmissionFor(null)} onSubmitted={() => setSubmissionFor(null)} />}
     {historyFor && <Modal title="История поручения" subtitle="Отправки и решения по доказательствам." onClose={() => setHistoryFor(null)} className="history-modal"><TaskHistory id={historyFor} manager={manager} onClose={() => setHistoryFor(null)} onUpdated={() => invalidate(qc, getListTasksQueryKey())} /></Modal>}
@@ -376,19 +425,54 @@ function MemberForm({ initial, leader, pending, error, onCancel, onSubmit }: { i
   return <form className="dialog-form" onSubmit={(e) => { e.preventDefault(); onSubmit(initial ? { rank, ...(leader ? { status } : {}) } : { nickname, rank }); }}><>{!initial && <Field label="Игровое имя"><input value={nickname} onChange={(e) => setNickname(e.target.value)} minLength={3} maxLength={32} required /></Field>}<Field label="Звание"><select value={rank} onChange={(e) => setRank(e.target.value)} required><option value="" disabled>Выберите звание</option>{options.map((rankOption) => <option key={rankOption} value={rankOption}>{rankOption}</option>)}</select></Field>{leader && initial && <Field label="Доступ"><select value={status} onChange={(e) => setStatus(e.target.value as typeof status)}><option value="active">Активен</option><option value="blocked">Заблокирован</option></select></Field>}</>{error && <div className="form-error" role="alert">{error}</div>}<FormActions pending={pending} onCancel={onCancel} label={initial ? 'Сохранить' : 'Создать доступ'} /></form>;
 }
 
-function EventsPage() {
+function EventsPage({ user }: { user: SessionUser }) {
   const qc = useQueryClient(); const query = useListEvents({ query: { queryKey: getListEventsQueryKey(), refetchOnMount: 'always' } }); const create = useCreateEvent(); const update = useUpdateEvent(); const remove = useDeleteEvent();
-  const [open, setOpen] = useState(false); const [editing, setEditing] = useState<Event | null>(null);
-  const save = (payload: { title: string; description: string; startsAt: string; location: string }) => {
+  const [open, setOpen] = useState(false); const [editing, setEditing] = useState<Event | null>(null); const [reportsFor, setReportsFor] = useState<Event | null>(null);
+  const save = (payload: { title: string; description: string; startsAt: string; endsAt: string }) => {
     const done = () => { invalidate(qc, getListEventsQueryKey()); setOpen(false); setEditing(null); };
-    if (editing) update.mutate({ id: editing.id, data: payload }, { onSuccess: done, onError: () => alert('Не удалось обновить мероприятие.') }); else create.mutate({ data: payload }, { onSuccess: done, onError: () => alert('Не удалось создать мероприятие.') });
+    if (editing) update.mutate({ id: editing.id, data: payload }, { onSuccess: done, onError: (error) => alert(mutationErrorText(error, 'Не удалось обновить мероприятие.')) }); else create.mutate({ data: payload }, { onSuccess: done, onError: (error) => alert(mutationErrorText(error, 'Не удалось создать мероприятие.')) });
   };
-  return <><PageHeading eyebrow="ПЛАНИРОВАНИЕ / КАЛЕНДАРЬ" title="Мероприятия" description="Расписание встреч и служебных мероприятий Правительства области." action={<button className="button button-primary" onClick={() => setOpen(true)}><Plus size={16} /> Новое мероприятие</button>} />{query.isLoading ? <PageSkeleton /> : query.isError ? <InlineError message="Не удалось загрузить расписание." onRetry={() => void query.refetch()} /> : !query.data?.length ? <EmptyState title="Расписание чистое" text="Добавьте первое мероприятие для команды." action={<button className="button button-primary" onClick={() => setOpen(true)}>Запланировать</button>} /> : <div className="event-grid">{query.data.map((ev) => <article className="event-card" key={ev.id}><div className="event-date-block"><span>{new Intl.DateTimeFormat('ru-RU', { month: 'short' }).format(new Date(ev.startsAt)).toUpperCase()}</span><strong>{new Date(ev.startsAt).getDate().toString().padStart(2, '0')}</strong></div><div className="event-body"><div className="event-topline"><Badge status={ev.status} /><span>{dateText(ev.startsAt, true)}</span></div><h2>{ev.title}</h2><p>{ev.description}</p><span className="event-location"><MapPin size={14} />{ev.location}</span></div><div className="event-actions"><button className="icon-button" aria-label="Изменить" onClick={() => { setEditing(ev); setOpen(true); }}><Pencil size={15} /></button><button className="icon-button danger-icon" aria-label="Удалить" onClick={() => confirm(`Удалить мероприятие «${ev.title}»?`) && remove.mutate({ id: ev.id }, { onSuccess: () => invalidate(qc, getListEventsQueryKey()), onError: () => alert('Не удалось удалить мероприятие.') })}><Trash2 size={15} /></button></div></article>)}</div>}{open && <Modal title={editing ? 'Изменить мероприятие' : 'Новое мероприятие'} subtitle="Планирование сбора личного состава" onClose={() => { setOpen(false); setEditing(null); }}><EventForm initial={editing} pending={create.isPending || update.isPending} onCancel={() => { setOpen(false); setEditing(null); }} onSubmit={save} /></Modal>}</>;
+  return <><PageHeading eyebrow="ПЛАНИРОВАНИЕ / КАЛЕНДАРЬ" title="Мероприятия" description="Создавайте мероприятия и проверяйте отчёты сотрудников." action={<button className="button button-primary" onClick={() => setOpen(true)}><Plus size={16} /> Новое мероприятие</button>} />{query.isLoading ? <PageSkeleton /> : query.isError ? <InlineError message="Не удалось загрузить расписание." onRetry={() => void query.refetch()} /> : !query.data?.length ? <EmptyState title="Расписание чистое" text="Добавьте первое мероприятие для команды." action={<button className="button button-primary" onClick={() => setOpen(true)}>Запланировать</button>} /> : <div className="event-grid">{query.data.map((ev) => <article className="event-card" key={ev.id}><div className="event-date-block"><span>{new Intl.DateTimeFormat('ru-RU', { month: 'short' }).format(new Date(ev.startsAt)).toUpperCase()}</span><strong>{new Date(ev.startsAt).getDate().toString().padStart(2, '0')}</strong></div><div className="event-body"><div className="event-topline"><Badge status={ev.status} /><span><Clock3 size={12} />{dateText(ev.startsAt, true)}</span></div><h2>{ev.title}</h2><p>{ev.description || 'Описание не добавлено.'}</p><div className="event-schedule"><span>НАЧАЛО <strong>{dateText(ev.startsAt, true)}</strong></span><span>КОНЕЦ <strong>{ev.endsAt ? dateText(ev.endsAt, true) : 'Не назначен'}</strong></span></div><button className="button button-secondary button-small event-review-button" onClick={() => setReportsFor(ev)}><FileCheck2 size={14} /> Отчёты сотрудников</button></div><div className="event-actions"><button className="icon-button" aria-label="Изменить" onClick={() => { setEditing(ev); setOpen(true); }}><Pencil size={15} /></button><button className="icon-button danger-icon" aria-label="Удалить" onClick={() => confirm(`Удалить мероприятие «${ev.title}»? Вместе с ним удалится история отчётов.`) && remove.mutate({ id: ev.id }, { onSuccess: () => invalidate(qc, getListEventsQueryKey()), onError: () => alert('Не удалось удалить мероприятие.') })}><Trash2 size={15} /></button></div></article>)}</div>}{open && <Modal title={editing ? 'Изменить мероприятие' : 'Новое мероприятие'} subtitle="Укажите период проведения — в это время сотрудники смогут отправлять отчёты." onClose={() => { setOpen(false); setEditing(null); }}><EventForm initial={editing} pending={create.isPending || update.isPending} onCancel={() => { setOpen(false); setEditing(null); }} onSubmit={save} /></Modal>}{reportsFor && <EventReportsModal event={reportsFor} onClose={() => setReportsFor(null)} manager={user.role !== 'employee'} />}</>;
 }
-function EventForm({ initial, pending, onCancel, onSubmit }: { initial: Event | null; pending: boolean; onCancel: () => void; onSubmit: (data: { title: string; description: string; startsAt: string; location: string }) => void }) {
-  const localDate = (v?: string) => v ? new Date(new Date(v).getTime() - new Date(v).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '';
-  const [title, setTitle] = useState(initial?.title ?? ''); const [description, setDescription] = useState(initial?.description ?? ''); const [startsAt, setStartsAt] = useState(localDate(initial?.startsAt)); const [location, setLocation] = useState(initial?.location ?? '');
-  return <form className="dialog-form" onSubmit={(e) => { e.preventDefault(); onSubmit({ title, description, startsAt: new Date(startsAt).toISOString(), location }); }}><Field label="Название"><input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={160} required /></Field><div className="form-split"><Field label="Дата и время"><input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} required /></Field><Field label="Место"><input value={location} onChange={(e) => setLocation(e.target.value)} maxLength={240} required /></Field></div><Field label="Описание"><textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={4000} /></Field><FormActions pending={pending} onCancel={onCancel} label="Сохранить" /></form>;
+function EmployeeEventsPage() {
+  const query = useListEvents({ query: { queryKey: getListEventsQueryKey(), refetchOnMount: 'always', refetchInterval: 30000 } });
+  return <><PageHeading eyebrow="РАБОЧАЯ ЗОНА / ОТЧЁТЫ" title="Мероприятия" description="Начавшиеся мероприятия доступны здесь. Отправьте скриншоты во время работы — руководство проверит каждый отчёт." />{query.isLoading ? <PageSkeleton /> : query.isError ? <InlineError message="Не удалось загрузить мероприятия." onRetry={() => void query.refetch()} /> : !query.data?.length ? <EmptyState title="Мероприятий пока нет" text="Вкладка появится, когда начнётся назначенное мероприятие." /> : <div className="event-grid">{query.data.map((ev) => <EmployeeEventCard key={ev.id} event={ev} />)}</div>}</>;
+}
+function EmployeeEventCard({ event }: { event: Event }) {
+  const query = useListEventSubmissions(event.id, { query: { queryKey: getListEventSubmissionsQueryKey(event.id), refetchOnMount: 'always' } });
+  const [submitting, setSubmitting] = useState(false); const [showHistory, setShowHistory] = useState(false);
+  const latest = query.data?.[0]; const now = Date.now(); const isActive = event.status === 'planned' && !!event.endsAt && new Date(event.startsAt).getTime() <= now && new Date(event.endsAt).getTime() > now; const canSubmit = isActive && (!latest || ['rejected', 'revision_required'].includes(latest.status));
+  const displayStatus = isActive ? 'in_progress' : event.status === 'planned' && event.endsAt && new Date(event.endsAt).getTime() <= now ? 'completed' : event.status;
+  return <article className="event-card employee-event-card"><div className="event-date-block"><span>{new Intl.DateTimeFormat('ru-RU', { month: 'short' }).format(new Date(event.startsAt)).toUpperCase()}</span><strong>{new Date(event.startsAt).getDate().toString().padStart(2, '0')}</strong></div><div className="event-body"><div className="event-topline"><Badge status={displayStatus} /><span><Clock3 size={12} />{dateText(event.startsAt, true)}</span></div><h2>{event.title}</h2><p>{event.description || 'Описание не добавлено.'}</p><div className="event-schedule"><span>НАЧАЛО <strong>{dateText(event.startsAt, true)}</strong></span><span>КОНЕЦ <strong>{event.endsAt ? dateText(event.endsAt, true) : 'Не назначен'}</strong></span></div>{latest && <div className="event-report-status"><span>ПОСЛЕДНИЙ ОТЧЁТ</span><Badge status={latest.status} /></div>}<div className="event-employee-actions">{canSubmit ? <button className="button button-primary button-small" onClick={() => setSubmitting(true)} disabled={query.isLoading}><Camera size={14} />{latest ? 'Отправить повторно' : 'Отправить отчёт'}</button> : <span className="event-report-wait"><FileCheck2 size={14} />{latest?.status === 'pending_review' ? 'Отчёт на проверке' : latest?.status === 'approved' ? 'Отчёт принят' : isActive ? 'Отчёт отправлен' : 'Период сдачи завершён'}</span>}{!!query.data?.length && <button className="button button-secondary button-small" onClick={() => setShowHistory((value) => !value)}>{showHistory ? 'Скрыть отчёты' : `Мои отчёты · ${query.data.length}`}</button>}</div>{query.isError && <div className="event-report-error">Не удалось загрузить историю отчётов.</div>}{showHistory && <div className="event-report-history">{query.data?.map((item) => <EventSubmissionEntry key={item.id} item={item} />)}</div>}</div>{submitting && <SubmitModal title={`Отчёт: ${event.title}`} detail="Прикрепите скриншоты выполненной работы." onClose={() => setSubmitting(false)} onSubmitted={() => { setSubmitting(false); void query.refetch(); }} id={event.id} pendingHook="event" />}</article>;
+}
+function EventReportsModal({ event, onClose, manager }: { event: Event; onClose: () => void; manager: boolean }) {
+  const query = useListEventSubmissions(event.id, { query: { queryKey: getListEventSubmissionsQueryKey(event.id), refetchOnMount: 'always' } });
+  const members = useListMembers({ query: { queryKey: getListMembersQueryKey(), enabled: manager } });
+  const [reviewNickname, setReviewNickname] = useState('');
+  const [reviewRank, setReviewRank] = useState('');
+  const membersById = useMemo(() => new Map((members.data ?? []).map((member) => [member.id, member])), [members.data]);
+  const visibleSubmissions = useMemo(() => (query.data ?? []).filter((item) =>
+    !manager || matchesReviewFilters(item.memberNickname, item.memberId, membersById, reviewNickname, reviewRank),
+  ), [query.data, manager, membersById, reviewNickname, reviewRank]);
+  return <Modal title="Отчёты сотрудников" subtitle={event.title} onClose={onClose} className="event-reports-modal">
+    {query.isLoading ? <PageSkeleton /> : query.isError ? <InlineError message="Не удалось загрузить отчёты." onRetry={() => void query.refetch()} /> : <>
+      {manager && <ReviewFilters nickname={reviewNickname} rank={reviewRank} onNicknameChange={setReviewNickname} onRankChange={setReviewRank} rankDisabled={members.isLoading || members.isError} rankHint={members.isLoading ? 'Загружаем список званий…' : members.isError ? 'Фильтр по званию временно недоступен.' : undefined} />}
+      {!query.data?.length ? <EmptyState title="Отчётов пока нет" text="Отправленные во время мероприятия скриншоты появятся здесь." /> : !visibleSubmissions.length ? <EmptyState title="По фильтрам отчётов нет" text="Измените ник или звание, чтобы увидеть другие отчёты." /> : <div className="event-report-history">{visibleSubmissions.map((item) => <EventSubmissionEntry key={item.id} item={item} manager={manager} onReviewed={() => void query.refetch()} />)}</div>}
+    </>}
+  </Modal>;
+}
+function EventSubmissionEntry({ item, manager = false, onReviewed }: { item: EventSubmission; manager?: boolean; onReviewed?: () => void }) {
+  return <article className="submission-entry"><div className="submission-heading"><div><strong>{manager ? item.memberNickname : `Отчёт №${item.version}`}</strong><span>{dateText(item.submittedAt, true)}</span></div><Badge status={item.status} /></div>{item.comment && <p className="submission-comment">{item.comment}</p>}{item.decisionReason && <div className="review-note"><strong>{item.reviewerNickname ? `Решение · ${item.reviewerNickname}` : 'Комментарий руководства'}</strong><span>{item.decisionReason}</span></div>}<FileGallery files={item.files} />{manager && item.status === 'pending_review' && <EventSubmissionReview item={item} onReviewed={onReviewed ?? (() => undefined)} />}</article>;
+}
+function EventSubmissionReview({ item, onReviewed }: { item: EventSubmission; onReviewed: () => void }) {
+  const review = useReviewEventSubmission(); const [decision, setDecision] = useState<'approved' | 'rejected' | 'revision_required'>('approved'); const [reason, setReason] = useState('');
+  const submit = () => review.mutate({ id: item.id, data: { status: decision, ...(reason.trim() ? { reason: reason.trim() } : {}) } }, { onSuccess: () => { onReviewed(); setReason(''); }, onError: (error) => alert(mutationErrorText(error, 'Не удалось сохранить решение.')) });
+  return <div className="review-box"><div className="section-kicker"><span /> РЕШЕНИЕ ПО ОТЧЁТУ</div><Field label="Решение"><select value={decision} onChange={(e) => setDecision(e.target.value as typeof decision)}><option value="approved">Принять</option><option value="revision_required">Вернуть на доработку</option><option value="rejected">Отклонить</option></select></Field>{decision !== 'approved' && <Field label="Причина (обязательно)"><textarea value={reason} onChange={(e) => setReason(e.target.value)} maxLength={2000} rows={3} required placeholder="Объясните решение сотруднику" /></Field>}<button className="button button-primary button-small" disabled={review.isPending || (decision !== 'approved' && !reason.trim())} onClick={submit}>{review.isPending ? 'Сохраняем…' : 'Сохранить решение'} <Check size={14} /></button></div>;
+}
+function EventForm({ initial, pending, onCancel, onSubmit }: { initial: Event | null; pending: boolean; onCancel: () => void; onSubmit: (data: { title: string; description: string; startsAt: string; endsAt: string }) => void }) {
+  const localDate = (v?: string | null) => v ? new Date(new Date(v).getTime() - new Date(v).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '';
+  const [title, setTitle] = useState(initial?.title ?? ''); const [description, setDescription] = useState(initial?.description ?? ''); const [startsAt, setStartsAt] = useState(localDate(initial?.startsAt)); const [endsAt, setEndsAt] = useState(localDate(initial?.endsAt));
+  return <form className="dialog-form" onSubmit={(e) => { e.preventDefault(); if (new Date(endsAt) <= new Date(startsAt)) { alert('Время окончания должно быть позже времени начала.'); return; } onSubmit({ title, description, startsAt: new Date(startsAt).toISOString(), endsAt: new Date(endsAt).toISOString() }); }}><Field label="Название"><input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={160} required /></Field><div className="form-split"><Field label="Начало мероприятия — дата и время"><input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} required /></Field><Field label="Окончание мероприятия — дата и время"><input type="datetime-local" value={endsAt} min={startsAt || undefined} onChange={(e) => setEndsAt(e.target.value)} required /></Field></div><Field label="Описание"><textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={4000} /></Field><FormActions pending={pending} onCancel={onCancel} label="Сохранить" /></form>;
 }
 
 function DisciplinePage() {

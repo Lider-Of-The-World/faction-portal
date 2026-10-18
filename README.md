@@ -10,11 +10,10 @@
 pnpm install --frozen-lockfile
 cp .env.example .env
 # заполните .env локальными настройками и секретами, не коммитьте его
-pnpm db:migrate
 pnpm run build
 ```
 
-Для локальной проверки production-потока выполните `pnpm run build`, затем `NODE_ENV=production PORT=5000 pnpm --filter @workspace/api-server run start`; один Express-сервис отдаёт и UI, и API. Перед запуском должны быть заданы `DATABASE_URL`, `SESSION_SECRET`, `CRON_SECRET` и рабочие Dropbox-переменные из `.env.example`. При первом открытии приложения в пустой базе автоматически создаётся лидер `Winston_Goodman` с начальным паролем `1234`. До смены этого пароля доступ к остальным разделам закрыт.
+Для локальной проверки production-потока выполните `pnpm run build`, затем `NODE_ENV=production PORT=5000 pnpm --filter @workspace/api-server run start`; один Express-сервис отдаёт и UI, и API. При запуске API автоматически применяет ожидающие миграции до начала приёма запросов. На Render вручную запускать `pnpm db:migrate` через Shell не нужно. Перед запуском должны быть заданы `DATABASE_URL`, `SESSION_SECRET`, `CRON_SECRET` и рабочие Dropbox-переменные из `.env.example`. При первом открытии приложения в пустой базе автоматически создаётся лидер `Winston_Goodman` с начальным паролем `1234`. До смены этого пароля доступ к остальным разделам закрыт.
 
 Исправление имени в исходниках не переименовывает уже созданную запись. Для существующей базы один раз выполните `SUPABASE_FIX_LEADER_NICKNAME.sql` в SQL Editor Supabase. Скрипт меняет только аккаунт лидера с точным старым ником, сохраняет пароль и активные сессии, а также добавляет запись в журнал аудита. Если новый ник уже занят, скрипт ничего не изменит.
 
@@ -26,7 +25,7 @@ pnpm run build
 | `pnpm test` | Unit-тесты дисциплинарной логики и защиты cron |
 | `pnpm run build` | Typecheck, production-сборка API и UI |
 | `pnpm db:generate` | Сгенерировать Drizzle SQL-миграцию после изменения схемы |
-| `pnpm db:migrate` | Применить миграции из `lib/db/migrations` |
+| `pnpm db:migrate` | Вручную применить миграции из `lib/db/migrations`; API также делает это при запуске |
 | `pnpm --filter @workspace/api-server run bootstrap:leader` | Необязательная ручная проверка/инициализация первого лидера |
 
 ## Хранение и доступ

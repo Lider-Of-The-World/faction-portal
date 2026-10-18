@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
+  SubmitEventSubmissionBody,
   SubmitStandardBody,
   SubmitTaskBody,
 } from "../../../../lib/api-zod/src/generated/api.ts";
@@ -81,6 +82,29 @@ test("standard and task submissions accept more than eight screenshots", () => {
   assert.equal(
     SubmitTaskBody.safeParse({ comment: "Proof", uploadIds }).success,
     true,
+  );
+});
+
+test("event reports require screenshots and accept up to fifty", () => {
+  const uploadIds = Array.from(
+    { length: 50 },
+    (_, index) =>
+      `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+  );
+  assert.equal(
+    SubmitEventSubmissionBody.safeParse({ comment: "", uploadIds }).success,
+    true,
+  );
+  assert.equal(
+    SubmitEventSubmissionBody.safeParse({ comment: "", uploadIds: [] }).success,
+    false,
+  );
+  assert.equal(
+    SubmitEventSubmissionBody.safeParse({
+      comment: "",
+      uploadIds: [...uploadIds, uploadIds[0]],
+    }).success,
+    false,
   );
 });
 

@@ -29,6 +29,9 @@ import type {
   ErrorEnvelope,
   Event,
   EventInput,
+  EventSubmission,
+  EventSubmissionInput,
+  EventSubmissionReviewInput,
   EventUpdate,
   HealthStatus,
   ListAuditLogsParams,
@@ -1300,6 +1303,261 @@ export const useDeleteEvent = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteEventMutationOptions(options));
+    }
+
+export const getListEventSubmissionsUrl = (id: string,) => {
+
+
+
+
+  return `/api/events/${id}/submissions`
+}
+
+/**
+ * @summary Отчёты по мероприятию (сотруднику доступны только его отчёты)
+ */
+export const listEventSubmissions = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<EventSubmission[]> => {
+
+  return customFetch<EventSubmission[]>(getListEventSubmissionsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEventSubmissionsQueryKey = (id: string,) => {
+    return [
+    `/api/events/${id}/submissions`
+    ] as const;
+    }
+
+
+export const getListEventSubmissionsQueryOptions = <TData = Awaited<ReturnType<typeof listEventSubmissions>>, TError = ErrorType<unknown>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEventSubmissions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEventSubmissionsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEventSubmissions>>> = ({ signal }) => listEventSubmissions(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEventSubmissions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEventSubmissionsQueryResult = NonNullable<Awaited<ReturnType<typeof listEventSubmissions>>>
+export type ListEventSubmissionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Отчёты по мероприятию (сотруднику доступны только его отчёты)
+ */
+
+export function useListEventSubmissions<TData = Awaited<ReturnType<typeof listEventSubmissions>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEventSubmissions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEventSubmissionsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSubmitEventSubmissionUrl = (id: string,) => {
+
+
+
+
+  return `/api/events/${id}/submissions`
+}
+
+/**
+ * @summary Отправить скриншоты отчёта по мероприятию
+ */
+export const submitEventSubmission = async (id: string,
+    eventSubmissionInput: EventSubmissionInput, options?: Parameters<typeof customFetch>[1]): Promise<EventSubmission> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<EventSubmission>(getSubmitEventSubmissionUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(eventSubmissionInput)
+  }
+);}
+
+
+
+
+
+export const getSubmitEventSubmissionMutationKey = () => ['submitEventSubmission'] as const;
+
+export const getSubmitEventSubmissionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitEventSubmission>>, TError,SubmitEventSubmissionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitEventSubmission>>, TError,SubmitEventSubmissionMutationVariables, TContext> => {
+
+const mutationKey = getSubmitEventSubmissionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitEventSubmission>>, SubmitEventSubmissionMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  submitEventSubmission(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitEventSubmissionMutationResult = NonNullable<Awaited<ReturnType<typeof submitEventSubmission>>>
+    export type SubmitEventSubmissionMutationBody = BodyType<EventSubmissionInput>
+    export type SubmitEventSubmissionMutationError = ErrorType<unknown>
+    export type SubmitEventSubmissionMutationVariables = {id: string;data: BodyType<EventSubmissionInput>}
+
+    /**
+ * @summary Отправить скриншоты отчёта по мероприятию
+ */
+export const useSubmitEventSubmission = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitEventSubmission>>, TError,SubmitEventSubmissionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitEventSubmission>>,
+        TError,
+        SubmitEventSubmissionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSubmitEventSubmissionMutationOptions(options));
+    }
+
+export const getReviewEventSubmissionUrl = (id: string,) => {
+
+
+
+
+  return `/api/event-submissions/${id}/review`
+}
+
+/**
+ * @summary Проверить отчёт по мероприятию
+ */
+export const reviewEventSubmission = async (id: string,
+    eventSubmissionReviewInput: EventSubmissionReviewInput, options?: Parameters<typeof customFetch>[1]): Promise<EventSubmission> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<EventSubmission>(getReviewEventSubmissionUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(eventSubmissionReviewInput)
+  }
+);}
+
+
+
+
+
+export const getReviewEventSubmissionMutationKey = () => ['reviewEventSubmission'] as const;
+
+export const getReviewEventSubmissionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewEventSubmission>>, TError,ReviewEventSubmissionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reviewEventSubmission>>, TError,ReviewEventSubmissionMutationVariables, TContext> => {
+
+const mutationKey = getReviewEventSubmissionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reviewEventSubmission>>, ReviewEventSubmissionMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reviewEventSubmission(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReviewEventSubmissionMutationResult = NonNullable<Awaited<ReturnType<typeof reviewEventSubmission>>>
+    export type ReviewEventSubmissionMutationBody = BodyType<EventSubmissionReviewInput>
+    export type ReviewEventSubmissionMutationError = ErrorType<unknown>
+    export type ReviewEventSubmissionMutationVariables = {id: string;data: BodyType<EventSubmissionReviewInput>}
+
+    /**
+ * @summary Проверить отчёт по мероприятию
+ */
+export const useReviewEventSubmission = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewEventSubmission>>, TError,ReviewEventSubmissionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reviewEventSubmission>>,
+        TError,
+        ReviewEventSubmissionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReviewEventSubmissionMutationOptions(options));
     }
 
 export const getListStandardsUrl = () => {

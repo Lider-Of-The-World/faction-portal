@@ -1,0 +1,1 @@
+- [Daily standards by title](daily-standards-by-title.md) — each title has its own daily norm; only matching active members receive it.
