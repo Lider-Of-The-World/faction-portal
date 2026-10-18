@@ -331,7 +331,9 @@ function DashboardDisciplineRoster({ user }: { user: SessionUser }) {
             </div>)}
           </div>}
   </section>;
-}function StatCard({ label, value, note, icon: Icon, accent = false }: { label: string; value: string | number; note: string; icon: typeof Users; accent?: boolean }) { return <div className={`stat-card ${accent ? 'stat-accent' : ''}`}><div className="stat-top"><span>{label}</span><Icon size={17} /></div><div className="stat-number">{value}</div><div className="stat-note"><span className="stat-marker" />{note}</div></div>; }
+}
+
+function StatCard({ label, value, note, icon: Icon, accent = false }: { label: string; value: string | number; note: string; icon: typeof Users; accent?: boolean }) { return <div className={`stat-card ${accent ? 'stat-accent' : ''}`}><div className="stat-top"><span>{label}</span><Icon size={17} /></div><div className="stat-number">{value}</div><div className="stat-note"><span className="stat-marker" />{note}</div></div>; }
 
 function StandardsPage({ user }: { user: SessionUser }) {
   const qc = useQueryClient(); const manager = user.role !== 'employee';
