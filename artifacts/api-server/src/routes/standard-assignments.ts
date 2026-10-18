@@ -353,7 +353,17 @@ router.post(
       res.status(404).json({ error: "Назначенный норматив не найден." });
       return;
     }
-    if (!["not_submitted", "rejected", "revision_required"].includes(assignment.status)) {
+    if (!["not_submitted", "revision_required"].includes(assignment.status)) {
+      res.status(409).json({ error: "Отчёт уже отправлен или сейчас нельзя его отправить." });
+      return;
+    }
+    const [latestSubmissionBeforeUpload] = await db
+      .select({ status: standardSubmissionsTable.status })
+      .from(standardSubmissionsTable)
+      .where(eq(standardSubmissionsTable.assignmentId, assignment.id))
+      .orderBy(desc(standardSubmissionsTable.version))
+      .limit(1);
+    if (latestSubmissionBeforeUpload?.status === "rejected") {
       res.status(409).json({ error: "Отчёт уже отправлен или сейчас нельзя его отправить." });
       return;
     }
@@ -426,12 +436,19 @@ router.post(
         .limit(1);
       if (
         !lockedAssignment ||
-        !["not_submitted", "rejected", "revision_required"].includes(
+        !["not_submitted", "revision_required"].includes(
           lockedAssignment.status,
         )
       ) {
         return null;
       }
+      const [latestSubmission] = await tx
+        .select({ status: standardSubmissionsTable.status })
+        .from(standardSubmissionsTable)
+        .where(eq(standardSubmissionsTable.assignmentId, assignment.id))
+        .orderBy(desc(standardSubmissionsTable.version))
+        .limit(1);
+      if (latestSubmission?.status === "rejected") return null;
 
       const [versionCount] = await tx
         .select({ value: count() })
@@ -572,7 +589,7 @@ router.patch(
         recipientId: current.assignment.assigneeId,
         kind: "standard_reviewed",
         title: "Есть результат проверки норматива",
-        message: `${body.data.status === "approved" ? "Норматив одобрен" : body.data.status === "rejected" ? "Норматив отклонён" : "Норматив возвращён на исправление"}: ${body.data.reason.trim()}`,
+        message: `${body.data.status === "approved" ? "Норматив одобрен" : "Норматив отклонён"}: ${body.data.reason.trim()}`,
         relatedType: "standard_assignment",
         relatedId: current.assignment.id,
       });

@@ -252,7 +252,7 @@ router.post(
         )
         .orderBy(desc(eventSubmissionsTable.version))
         .limit(1);
-      if (latest && !["rejected", "revision_required"].includes(latest.status)) {
+      if (latest && latest.status !== "revision_required") {
         return null;
       }
 
@@ -328,7 +328,7 @@ router.patch(
     const reason = body.data.reason?.trim() ?? "";
     if (body.data.status !== "approved" && !reason) {
       res.status(400).json({
-        error: "Для отклонения или возврата на доработку укажите причину.",
+        error: "Для отклонения укажите причину.",
       });
       return;
     }

@@ -387,7 +387,7 @@ export const reviewEventSubmissionBodyReasonMax = 2000;
 
 
 export const ReviewEventSubmissionBody = zod.object({
-  "status": zod.enum(['approved', 'rejected', 'revision_required']),
+  "status": zod.enum(['approved', 'rejected']),
   "reason": zod.string().max(reviewEventSubmissionBodyReasonMax).optional()
 })
 
@@ -685,7 +685,7 @@ export const reviewStandardSubmissionBodyReasonMax = 2000;
 
 
 export const ReviewStandardSubmissionBody = zod.object({
-  "status": zod.enum(['approved', 'rejected', 'revision_required']),
+  "status": zod.enum(['approved', 'rejected']),
   "reason": zod.string().min(1).max(reviewStandardSubmissionBodyReasonMax)
 })
 
@@ -911,7 +911,7 @@ export const reviewTaskSubmissionBodyReasonMax = 2000;
 
 
 export const ReviewTaskSubmissionBody = zod.object({
-  "status": zod.enum(['approved', 'rejected', 'revision_required']),
+  "status": zod.enum(['approved', 'rejected']),
   "reason": zod.string().max(reviewTaskSubmissionBodyReasonMax).optional()
 })
 

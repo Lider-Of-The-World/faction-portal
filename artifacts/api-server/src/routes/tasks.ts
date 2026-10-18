@@ -322,7 +322,7 @@ router.patch(
         current.assigneeId !== viewer.id ||
         Object.keys(body.data).length !== 1 ||
         body.data.status !== "in_progress" ||
-        !["assigned", "rejected", "revision_required"].includes(current.status)
+        !["assigned", "revision_required"].includes(current.status)
       ) {
         res.status(403).json({ error: "Сотрудник может только отметить своё задание как выполняемое." });
         return;
@@ -493,7 +493,17 @@ router.post(
       res.status(404).json({ error: "Задание не найдено." });
       return;
     }
-    if (!["assigned", "in_progress", "rejected", "revision_required"].includes(task.status)) {
+    if (!["assigned", "in_progress", "revision_required"].includes(task.status)) {
+      res.status(409).json({ error: "Отчёт уже отправлен или сейчас нельзя его отправить." });
+      return;
+    }
+    const [latestSubmissionBeforeUpload] = await db
+      .select({ status: taskSubmissionsTable.status })
+      .from(taskSubmissionsTable)
+      .where(eq(taskSubmissionsTable.taskId, task.id))
+      .orderBy(desc(taskSubmissionsTable.version))
+      .limit(1);
+    if (latestSubmissionBeforeUpload?.status === "rejected") {
       res.status(409).json({ error: "Отчёт уже отправлен или сейчас нельзя его отправить." });
       return;
     }
@@ -511,12 +521,20 @@ router.post(
       if (
         !lockedTask ||
         lockedTask.assigneeId !== viewer.id ||
-        !["assigned", "in_progress", "rejected", "revision_required"].includes(
+        !["assigned", "in_progress", "revision_required"].includes(
           lockedTask.status,
         )
       ) {
         return null;
       }
+
+      const [latestSubmission] = await tx
+        .select({ status: taskSubmissionsTable.status })
+        .from(taskSubmissionsTable)
+        .where(eq(taskSubmissionsTable.taskId, task.id))
+        .orderBy(desc(taskSubmissionsTable.version))
+        .limit(1);
+      if (latestSubmission?.status === "rejected") return null;
 
       const [versionCount] = await tx
         .select({ value: count() })
@@ -613,7 +631,7 @@ router.patch(
     }
     const reason = body.data.reason?.trim() ?? "";
     if (body.data.status !== "approved" && !reason) {
-      res.status(400).json({ error: "Для отклонения или возврата на доработку обязательно укажите причину." });
+      res.status(400).json({ error: "Для отклонения обязательно укажите причину." });
       return;
     }
     const updated = await db.transaction(async (tx) => {
@@ -654,9 +672,7 @@ router.patch(
         const outcome =
           body.data.status === "approved"
             ? "Задание одобрено"
-            : body.data.status === "rejected"
-              ? "Задание отклонено"
-              : "Задание возвращено на доработку";
+            : "Задание отклонено";
         await tx.insert(notificationsTable).values({
           recipientId: current.task.assigneeId,
           kind: "task_reviewed",
