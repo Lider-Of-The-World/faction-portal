@@ -18,6 +18,13 @@ test("Moscow daily cycle changes at 00:00 Europe/Moscow", () => {
   assert.equal(atMidnight.startsAt.toISOString(), "2026-10-17T21:00:00.000Z");
 });
 
+test("a standard saved during the Moscow day is due at the next midnight", () => {
+  const cycle = getMoscowDailyCycle(new Date("2026-10-17T12:34:00.000Z"));
+
+  assert.equal(cycle.dayKey, "2026-10-17");
+  assert.equal(cycle.endsAt.toISOString(), "2026-10-17T21:00:00.000Z");
+});
+
 test("daily assignments recognize each of the six supported titles", () => {
   assert.equal(isDailyStandardPosition("Администратор"), true);
   assert.equal(isDailyStandardPosition("Лидер"), true);
