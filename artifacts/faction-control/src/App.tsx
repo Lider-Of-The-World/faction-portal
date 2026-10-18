@@ -113,10 +113,10 @@ function App() {
 function Router() {
   const { data: user, isLoading, isError, refetch } = useGetCurrentUser({ query: { queryKey: getGetCurrentUserQueryKey(), retry: false, refetchOnMount: 'always' } });
   const [path, setPath] = useLocation();
-  useEffect(() => { if (user?.mustChangePassword && path !== '/settings') setPath('/settings'); }, [user?.mustChangePassword, path, setPath]);
   useEffect(() => { if (!isLoading && (isError || !user) && path !== '/login') setPath('/login'); if (user && !user.mustChangePassword && path === '/login') setPath('/dashboard'); }, [isLoading, isError, user, path, setPath]);
   if (isLoading) return <FullLoading />;
   if (isError || !user) return <LoginScreen onAuthenticated={() => { void refetch(); setPath('/dashboard'); }} />;
+  if (user.mustChangePassword) return <ForcedPasswordChange user={user} />;
   return <Shell user={user}><Switch>
     <Route path="/login"><HomeRedirect /></Route>
     <Route path="/"><HomeRedirect /></Route>
@@ -155,6 +155,63 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
 }
 
 function BrandLockup() { return <div className="brand-lockup"><div className="brand-emblem"><Shield size={20} /></div><div><div className="brand-name">ПРАВИТЕЛЬСТВО<span>/</span>ОБЛАСТИ</div><div className="brand-sub">СЛУЖЕБНАЯ ПАНЕЛЬ</div></div></div>; }
+
+function ForcedPasswordChange({ user }: { user: SessionUser }) {
+  const change = useChangePassword();
+  const [error, setError] = useState('');
+  const [visible, setVisible] = useState({ current: false, next: false, confirm: false });
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError('');
+    const form = new FormData(event.currentTarget);
+    const currentPassword = String(form.get('currentPassword'));
+    const newPassword = String(form.get('newPassword'));
+    if (newPassword !== String(form.get('confirmPassword'))) {
+      setError('Новые пароли не совпадают. Проверьте оба поля.');
+      return;
+    }
+    if (newPassword.length < 10) {
+      setError('Новый пароль должен содержать не менее 10 символов.');
+      return;
+    }
+    change.mutate(
+      { data: { currentPassword, newPassword } },
+      {
+        onSuccess: () => window.location.reload(),
+        onError: (issue) => setError(mutationErrorText(issue, 'Не удалось сменить пароль. Проверьте временный пароль и попробуйте ещё раз.')),
+      },
+    );
+  };
+  return <main className="password-reset-page">
+    <div className="auth-grid" aria-hidden="true" />
+    <section className="password-reset-card" role="dialog" aria-modal="true" aria-labelledby="password-reset-title">
+      <BrandLockup />
+      <div className="password-reset-status"><KeyRound size={16} /><span>ОБЯЗАТЕЛЬНЫЙ ШАГ · ПЕРВЫЙ ВХОД</span></div>
+      <h1 id="password-reset-title">Смените временный пароль</h1>
+      <p className="password-reset-lead">Здравствуйте, <strong>{user.nickname}</strong>. Руководитель выдал вам временный пароль. Придумайте личный пароль, чтобы продолжить работу.</p>
+      <div className="password-reset-instructions">
+        <div className="password-reset-instruction-icon"><CircleAlert size={20} /></div>
+        <p>Введите выданный пароль, затем новый пароль длиной не менее <strong>10 символов</strong>. После сохранения страница обновится автоматически.</p>
+      </div>
+      <form className="password-reset-form" onSubmit={submit}>
+        <Field label="ВРЕМЕННЫЙ ПАРОЛЬ">
+          <span className="password-reset-input"><input name="currentPassword" type={visible.current ? 'text' : 'password'} autoComplete="current-password" autoFocus required /><button type="button" className="icon-button" aria-label={visible.current ? 'Скрыть временный пароль' : 'Показать временный пароль'} onClick={() => setVisible((state) => ({ ...state, current: !state.current }))}>{visible.current ? <EyeOff size={18} /> : <Eye size={18} />}</button></span>
+        </Field>
+        <Field label="НОВЫЙ ЛИЧНЫЙ ПАРОЛЬ">
+          <span className="password-reset-input"><input name="newPassword" type={visible.next ? 'text' : 'password'} minLength={10} maxLength={128} autoComplete="new-password" required /><button type="button" className="icon-button" aria-label={visible.next ? 'Скрыть новый пароль' : 'Показать новый пароль'} onClick={() => setVisible((state) => ({ ...state, next: !state.next }))}>{visible.next ? <EyeOff size={18} /> : <Eye size={18} />}</button></span>
+        </Field>
+        <Field label="ПОВТОРИТЕ НОВЫЙ ПАРОЛЬ">
+          <span className="password-reset-input"><input name="confirmPassword" type={visible.confirm ? 'text' : 'password'} minLength={10} maxLength={128} autoComplete="new-password" required /><button type="button" className="icon-button" aria-label={visible.confirm ? 'Скрыть подтверждение пароля' : 'Показать подтверждение пароля'} onClick={() => setVisible((state) => ({ ...state, confirm: !state.confirm }))}>{visible.confirm ? <EyeOff size={18} /> : <Eye size={18} />}</button></span>
+        </Field>
+        {error && <div className="form-error" role="alert">{error}</div>}
+        <button className="button button-primary password-reset-submit" disabled={change.isPending}>
+          {change.isPending ? <><LoaderCircle className="spin" size={18} /> Сохраняем новый пароль…</> : <>Сохранить пароль и продолжить <ArrowUpRight size={18} /></>}
+        </button>
+      </form>
+      <div className="password-reset-footnote"><Shield size={14} /><span>Доступ к системе откроется сразу после смены пароля.</span></div>
+    </section>
+  </main>;
+}
 
 function Shell({ user, children }: { user: SessionUser; children: ReactNode }) {
   const [path] = useLocation(); const [mobileOpen, setMobileOpen] = useState(false); const qc = useQueryClient();
@@ -706,8 +763,8 @@ function AuditLogCard({ entry }: { entry: AuditLogEntry }) {
 }
 
 function SettingsPage({ user }: { user: SessionUser }) {
-  const qc = useQueryClient(); const change = useChangePassword(); const logout = useLogout(); const [error, setError] = useState(''); const [success, setSuccess] = useState(false);
-  const submit = (e: FormEvent<HTMLFormElement>) => { e.preventDefault(); setError(''); setSuccess(false); const form = new FormData(e.currentTarget); const currentPassword = String(form.get('currentPassword')); const newPassword = String(form.get('newPassword')); if (newPassword !== String(form.get('confirmPassword'))) { setError('Новые пароли не совпадают.'); return; } if (newPassword.length < 10) { setError('Новый пароль должен содержать не менее 10 символов.'); return; } change.mutate({ data: { currentPassword, newPassword } }, { onSuccess: () => { setSuccess(true); e.currentTarget.reset(); invalidate(qc, getGetCurrentUserQueryKey()); }, onError: (issue) => setError((issue as Error).message || 'Не удалось сменить пароль.') }); };
+  const qc = useQueryClient(); const change = useChangePassword(); const logout = useLogout(); const [error, setError] = useState('');
+  const submit = (e: FormEvent<HTMLFormElement>) => { e.preventDefault(); setError(''); const form = new FormData(e.currentTarget); const currentPassword = String(form.get('currentPassword')); const newPassword = String(form.get('newPassword')); if (newPassword !== String(form.get('confirmPassword'))) { setError('Новые пароли не совпадают.'); return; } if (newPassword.length < 10) { setError('Новый пароль должен содержать не менее 10 символов.'); return; } change.mutate({ data: { currentPassword, newPassword } }, { onSuccess: () => window.location.reload(), onError: (issue) => setError(mutationErrorText(issue, 'Не удалось сменить пароль.')) }); };
   const signOut = () => logout.mutate(undefined, { onSuccess: () => { qc.clear(); window.location.assign(import.meta.env.BASE_URL || '/'); } });
   return (
     <>
@@ -721,7 +778,6 @@ function SettingsPage({ user }: { user: SessionUser }) {
               <Field label="Новый пароль"><input name="newPassword" type="password" minLength={10} maxLength={128} autoComplete="new-password" required /></Field>
               <Field label="Повторите пароль"><input name="confirmPassword" type="password" minLength={10} maxLength={128} autoComplete="new-password" required /></Field>
               {error && <div className="form-error">{error}</div>}
-              {success && <div className="form-success">Пароль изменён.</div>}
               <button className="button button-primary" disabled={change.isPending}>{change.isPending ? 'Сохраняем…' : 'Обновить пароль'}</button>
             </form>
           </Panel>
