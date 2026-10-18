@@ -353,7 +353,7 @@ router.post(
       res.status(404).json({ error: "Назначенный норматив не найден." });
       return;
     }
-    if (!["not_submitted", "revision_required"].includes(assignment.status)) {
+    if (assignment.status !== "not_submitted") {
       res.status(409).json({ error: "Отчёт уже отправлен или сейчас нельзя его отправить." });
       return;
     }
@@ -363,7 +363,7 @@ router.post(
       .where(eq(standardSubmissionsTable.assignmentId, assignment.id))
       .orderBy(desc(standardSubmissionsTable.version))
       .limit(1);
-    if (latestSubmissionBeforeUpload?.status === "rejected") {
+    if (latestSubmissionBeforeUpload) {
       res.status(409).json({ error: "Отчёт уже отправлен или сейчас нельзя его отправить." });
       return;
     }
@@ -436,9 +436,7 @@ router.post(
         .limit(1);
       if (
         !lockedAssignment ||
-        !["not_submitted", "revision_required"].includes(
-          lockedAssignment.status,
-        )
+        lockedAssignment.status !== "not_submitted"
       ) {
         return null;
       }
@@ -448,7 +446,7 @@ router.post(
         .where(eq(standardSubmissionsTable.assignmentId, assignment.id))
         .orderBy(desc(standardSubmissionsTable.version))
         .limit(1);
-      if (latestSubmission?.status === "rejected") return null;
+      if (latestSubmission) return null;
 
       const [versionCount] = await tx
         .select({ value: count() })

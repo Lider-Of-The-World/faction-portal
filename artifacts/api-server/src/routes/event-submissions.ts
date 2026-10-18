@@ -252,7 +252,7 @@ router.post(
         )
         .orderBy(desc(eventSubmissionsTable.version))
         .limit(1);
-      if (latest && latest.status !== "revision_required") {
+      if (latest) {
         return null;
       }
 

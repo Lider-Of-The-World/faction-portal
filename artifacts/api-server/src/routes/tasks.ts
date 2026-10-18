@@ -322,7 +322,7 @@ router.patch(
         current.assigneeId !== viewer.id ||
         Object.keys(body.data).length !== 1 ||
         body.data.status !== "in_progress" ||
-        !["assigned", "revision_required"].includes(current.status)
+        current.status !== "assigned"
       ) {
         res.status(403).json({ error: "Сотрудник может только отметить своё задание как выполняемое." });
         return;
@@ -493,7 +493,7 @@ router.post(
       res.status(404).json({ error: "Задание не найдено." });
       return;
     }
-    if (!["assigned", "in_progress", "revision_required"].includes(task.status)) {
+    if (!["assigned", "in_progress"].includes(task.status)) {
       res.status(409).json({ error: "Отчёт уже отправлен или сейчас нельзя его отправить." });
       return;
     }
@@ -503,7 +503,7 @@ router.post(
       .where(eq(taskSubmissionsTable.taskId, task.id))
       .orderBy(desc(taskSubmissionsTable.version))
       .limit(1);
-    if (latestSubmissionBeforeUpload?.status === "rejected") {
+    if (latestSubmissionBeforeUpload) {
       res.status(409).json({ error: "Отчёт уже отправлен или сейчас нельзя его отправить." });
       return;
     }
@@ -521,7 +521,7 @@ router.post(
       if (
         !lockedTask ||
         lockedTask.assigneeId !== viewer.id ||
-        !["assigned", "in_progress", "revision_required"].includes(
+        !["assigned", "in_progress"].includes(
           lockedTask.status,
         )
       ) {
@@ -534,7 +534,7 @@ router.post(
         .where(eq(taskSubmissionsTable.taskId, task.id))
         .orderBy(desc(taskSubmissionsTable.version))
         .limit(1);
-      if (latestSubmission?.status === "rejected") return null;
+      if (latestSubmission) return null;
 
       const [versionCount] = await tx
         .select({ value: count() })
