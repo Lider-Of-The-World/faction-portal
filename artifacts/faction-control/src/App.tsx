@@ -229,7 +229,6 @@ function Shell({ user, children }: { user: SessionUser; children: ReactNode }) {
     </div></aside>
     {mobileOpen && <button aria-label="Закрыть меню" className="mobile-scrim" onClick={() => setMobileOpen(false)} />}
      <div className="workspace"><header className="topbar"><button className="icon-button mobile-menu" aria-label="Открыть меню" onClick={() => setMobileOpen(true)}><Menu size={20} /></button><div className="breadcrumb"><span>ПАНЕЛЬ</span><span className="crumb-slash">/</span><strong>{NAV_ITEMS.find((item) => item.href === path)?.label ?? 'Обзор'}</strong></div><div className="topbar-right"><div className="topbar-clock"><span className="status-pulse" /> СЕССИЯ АКТИВНА</div><div className="topbar-date">{dateText(new Date().toISOString())}</div><div className="avatar avatar-small">{initials(user.nickname)}</div></div></header>
-      {user.mustChangePassword && <div className="password-alert"><KeyRound size={16} /><span>Для безопасности смените временный пароль.</span><Link href="/settings">Перейти к смене <ArrowUpRight size={14} /></Link></div>}
        <main className="main-content">{children}</main><footer className="app-footer"><span>ПРАВИТЕЛЬСТВО ОБЛАСТИ</span><span>СЛУЖЕБНОЕ ИСПОЛЬЗОВАНИЕ</span></footer>
     </div></div>;
 }
@@ -259,13 +258,62 @@ function DashboardPage({ user }: { user: SessionUser }) {
   if (isLoading) return <PageSkeleton />;
   if (isError || !data) return <InlineError message="Сводка временно недоступна." onRetry={() => void refetch()} />;
   return <><PageHeading eyebrow={`СМЕНА / ${memberTitle(user.role, user.rank).toUpperCase()}`} title={`Добрый день, ${user.nickname}.`} description="Сводка по сотрудникам, поручениям и нормативам Правительства области." action={<div className="date-stamp"><span>ТЕКУЩАЯ ДАТА</span><strong>{dateText(new Date().toISOString())}</strong></div>} />
-    <div className="overview-banner"><div className="banner-copy"><div className="banner-kicker"><span className="status-pulse" /> ОПЕРАЦИОННЫЙ ОБЗОР</div><h2>Сводка управления</h2><p>Сроки поручений и нормативов отображаются отдельно от дисциплинарных решений.</p></div><div className="banner-ornament"><div className="ornament-ring ring-a" /><div className="ornament-ring ring-b" /><Shield size={52} /></div><div className="banner-index"><span>01</span><i /></div></div>
+    <DashboardDisciplineRoster user={user} />
     <div className="stats-grid"><StatCard label="СОСТАВ" value={data.memberCount} note={`${data.activeMembers} активны`} icon={Users} /><StatCard label="ОТКРЫТЫЕ ПОРУЧЕНИЯ" value={data.openTasks} note="В работе у команды" icon={ListChecks} accent /><StatCard label="НОРМАТИВЫ НА ПРОВЕРКЕ" value={data.pendingStandards} note={`${data.pendingTaskReviews} поручений ожидают оценки`} icon={BookOpen} /></div>
     <div className="dashboard-columns"><Panel title="Ближайшие события" meta={`${data.recentEvents.length} В ЛЕНТЕ`}>{data.recentEvents.length ? <div className="activity-list">{data.recentEvents.map((ev) => <div className="activity-row" key={ev.id}><div className="activity-date"><strong>{new Date(ev.startsAt).getDate()}</strong><span>{new Intl.DateTimeFormat('ru-RU', { month: 'short' }).format(new Date(ev.startsAt)).toUpperCase()}</span></div><div className="activity-info"><strong>{ev.title}</strong><span><Clock3 size={12} />{dateText(ev.startsAt, true)}{ev.endsAt ? ` · до ${dateText(ev.endsAt, true)}` : ''}</span></div><Badge status={ev.status} /></div>)}</div> : <EmptyState title="Событий пока нет" text="Назначенные мероприятия появятся здесь." />}{(user.role !== 'employee' || data.recentEvents.length > 0) && <Link href="/events" className="panel-link">Все мероприятия <ArrowUpRight size={15} /></Link>}</Panel>
       <Panel title="На контроле" meta={`${data.recentTasks.length} ПОРУЧЕНИЙ`}>{data.recentTasks.length ? <div className="task-feed">{data.recentTasks.map((task) => <div className="task-feed-row" key={task.id}><div className={`priority-line priority-${task.priority}`} /><div className="task-feed-copy"><strong>{task.title}</strong><span>{task.assigneeNickname} · {LABEL[task.status]}</span></div><span className="task-feed-date">{dateText(task.dueAt)}</span></div>)}</div> : <EmptyState title="Поручений пока нет" text="Новые задачи появятся в этой ленте." />}<Link href="/tasks" className="panel-link">Открыть поручения <ArrowUpRight size={15} /></Link></Panel></div>
     <div className="dashboard-footnote"><span className="mono">ДАННЫЕ СИСТЕМЫ</span><span><span className="status-pulse" /> СИНХРОНИЗИРОВАНО</span></div>
   </>;
 }
+
+function DashboardDisciplineRoster({ user }: { user: SessionUser }) {
+  const manager = user.role !== 'employee';
+  const records = useDisciplineRecords();
+  const members = useListMembers({
+    query: { queryKey: getListMembersQueryKey(), refetchInterval: 60000 },
+  });
+  const employees = useMemo(
+    () => (members.data ?? []).filter((member) => member.role === 'employee'),
+    [members.data],
+  );
+  const summaries = useMemo(() => employees.map((member) => {
+    const history = (records.data ?? []).filter((record) => record.memberId === member.id);
+    return {
+      member,
+      warnings: history.filter((record) => record.type === 'warning' && record.status === 'active').length,
+      reprimands: history.filter((record) => record.type === 'reprimand' && record.status === 'active').length,
+    };
+  }), [employees, records.data]);
+
+  return <section className="dashboard-discipline-card" aria-labelledby="dashboard-discipline-title">
+    <div className="dashboard-discipline-header">
+      <div>
+        <div className="dashboard-discipline-kicker"><span className="status-pulse" /> АКТИВНЫЕ ВЗЫСКАНИЯ</div>
+        <h2 id="dashboard-discipline-title">{manager ? 'Взыскания сотрудников' : 'Мои взыскания'}</h2>
+      </div>
+      {manager && <Link href="/discipline" className="dashboard-discipline-link">Открыть реестр <ArrowUpRight size={15} /></Link>}
+    </div>
+    {records.isLoading || members.isLoading ? <div className="dashboard-discipline-message" role="status">Загружаем дисциплинарную сводку…</div> :
+      records.isError || members.isError ? <InlineError message="Не удалось загрузить дисциплинарную сводку." onRetry={() => { void records.refetch(); void members.refetch(); }} /> :
+        !summaries.length ? <div className="dashboard-discipline-message">{manager ? 'Сотрудников пока нет.' : 'Профиль сотрудника не найден.'}</div> :
+          <div className="dashboard-discipline-table" role="table" aria-label={manager ? 'Активные взыскания по сотрудникам' : 'Мои активные взыскания'}>
+            <div className="dashboard-discipline-columns" role="row">
+              <span role="columnheader">СОТРУДНИК</span>
+              <span role="columnheader">ПРЕДУПРЕЖДЕНИЯ</span>
+              <span role="columnheader">ВЫГОВОРЫ</span>
+            </div>
+            {summaries.map((summary) => <div className="dashboard-discipline-row" role="row" key={summary.member.id}>
+              <div className="dashboard-discipline-person" role="cell">
+                <strong>{summary.member.nickname}</strong>
+                <span>{summary.member.rank}</span>
+              </div>
+              <span className="dashboard-discipline-count dashboard-discipline-warning" role="cell" aria-label={`Активных предупреждений: ${summary.warnings}`}>{summary.warnings}<small> / 2</small></span>
+              <span className="dashboard-discipline-count dashboard-discipline-reprimand" role="cell" aria-label={`Активных выговоров: ${summary.reprimands}`}>{summary.reprimands}<small> / 3</small></span>
+            </div>)}
+          </div>}
+  </section>;
+}
+
 function StatCard({ label, value, note, icon: Icon, accent = false }: { label: string; value: string | number; note: string; icon: typeof Users; accent?: boolean }) { return <div className={`stat-card ${accent ? 'stat-accent' : ''}`}><div className="stat-top"><span>{label}</span><Icon size={17} /></div><div className="stat-number">{value}</div><div className="stat-note"><span className="stat-marker" />{note}</div></div>; }
 
 function StandardsPage({ user }: { user: SessionUser }) {
