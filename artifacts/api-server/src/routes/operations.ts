@@ -21,6 +21,7 @@ import {
 import { db, eventsTable, standardsTable } from "@workspace/db";
 import { writeAudit } from "../lib/audit";
 import { requireReadyAuth, requireManager } from "../lib/auth";
+import { assignDailyStandardImmediately } from "../lib/daily-standards";
 import { canonicalFactionRank } from "../lib/member-ranks";
 
 const router: IRouter = Router();
@@ -253,6 +254,7 @@ router.post("/standards", requireReadyAuth, async (req, res): Promise<void> => {
         })
         .returning();
       const row = created[0]!;
+      await assignDailyStandardImmediately(tx, row, new Date());
       await writeAudit(tx, {
         actorId: req.factionUser!.id,
         actorNickname: req.factionUser!.nickname,
@@ -332,6 +334,7 @@ router.patch(
           .where(eq(standardsTable.id, params.data.id))
           .returning();
         if (!updated) return undefined;
+        await assignDailyStandardImmediately(tx, updated, new Date());
         await writeAudit(tx, {
           actorId: req.factionUser!.id,
           actorNickname: req.factionUser!.nickname,
