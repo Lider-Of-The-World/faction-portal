@@ -12,5 +12,4 @@ export type EventSubmissionReviewInputStatus = typeof EventSubmissionReviewInput
 export const EventSubmissionReviewInputStatus = {
   approved: 'approved',
   rejected: 'rejected',
-  revision_required: 'revision_required',
 } as const;

@@ -1148,7 +1148,7 @@ components:
       properties:
         status:
           type: string
-          enum: [approved, rejected, revision_required]
+          enum: [approved, rejected]
         reason: { type: string, maxLength: 2000 }
     StandardSubmissionInput:
       type: object
@@ -1174,7 +1174,7 @@ components:
       properties:
         status:
           type: string
-          enum: [approved, rejected, revision_required]
+          enum: [approved, rejected]
         reason: { type: string, minLength: 1, maxLength: 2000 }
     TaskReviewInput:
       type: object
@@ -1182,7 +1182,7 @@ components:
       properties:
         status:
           type: string
-          enum: [approved, rejected, revision_required]
+          enum: [approved, rejected]
         reason: { type: string, maxLength: 2000 }
     TaskCancelInput:
       type: object

@@ -12,5 +12,4 @@ export type StandardReviewInputStatus = typeof StandardReviewInputStatus[keyof t
 export const StandardReviewInputStatus = {
   approved: 'approved',
   rejected: 'rejected',
-  revision_required: 'revision_required',
 } as const;

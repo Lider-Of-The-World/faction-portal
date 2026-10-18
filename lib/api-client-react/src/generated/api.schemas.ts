@@ -464,7 +464,6 @@ export type EventSubmissionReviewInputStatus = typeof EventSubmissionReviewInput
 export const EventSubmissionReviewInputStatus = {
   approved: 'approved',
   rejected: 'rejected',
-  revision_required: 'revision_required',
 } as const;
 
 export interface EventSubmissionReviewInput {
@@ -496,7 +495,6 @@ export type StandardReviewInputStatus = typeof StandardReviewInputStatus[keyof t
 export const StandardReviewInputStatus = {
   approved: 'approved',
   rejected: 'rejected',
-  revision_required: 'revision_required',
 } as const;
 
 export interface StandardReviewInput {
@@ -514,7 +512,6 @@ export type TaskReviewInputStatus = typeof TaskReviewInputStatus[keyof typeof Ta
 export const TaskReviewInputStatus = {
   approved: 'approved',
   rejected: 'rejected',
-  revision_required: 'revision_required',
 } as const;
 
 export interface TaskReviewInput {

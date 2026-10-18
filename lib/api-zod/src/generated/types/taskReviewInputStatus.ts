@@ -12,5 +12,4 @@ export type TaskReviewInputStatus = typeof TaskReviewInputStatus[keyof typeof Ta
 export const TaskReviewInputStatus = {
   approved: 'approved',
   rejected: 'rejected',
-  revision_required: 'revision_required',
 } as const;
