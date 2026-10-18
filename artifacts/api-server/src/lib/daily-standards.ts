@@ -1,7 +1,8 @@
-import { and, count, desc, eq, isNull, lt, lte } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, lt, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   db,
+  inactivityRequestsTable,
   membersTable,
   notificationsTable,
   standardAssignmentsTable,
@@ -10,6 +11,7 @@ import {
   systemJobStateTable,
 } from "@workspace/db";
 import { writeAudit } from "./audit";
+import { isDateWithinInactivityPeriod } from "./inactivity-period";
 import {
   getMoscowDailyCycle,
   isDailyStandardPosition,
@@ -58,6 +60,31 @@ async function assignDailyStandards(
     ...member,
     title: titleForMember(member.role, member.rank),
   }));
+  const approvedInactivityPeriods = activeMembers.length
+    ? await tx
+        .select({
+          memberId: inactivityRequestsTable.memberId,
+          startDate: inactivityRequestsTable.startDate,
+          endDate: inactivityRequestsTable.endDate,
+        })
+        .from(inactivityRequestsTable)
+        .where(
+          and(
+            eq(inactivityRequestsTable.status, "approved"),
+            inArray(
+              inactivityRequestsTable.memberId,
+              activeMembers.map((member) => member.id),
+            ),
+          ),
+        )
+    : [];
+  const inactiveMemberIds = new Set(
+    approvedInactivityPeriods
+      .filter((period) =>
+        isDateWithinInactivityPeriod(cycle.dayKey, period),
+      )
+      .map((period) => period.memberId),
+  );
   let assignedCount = 0;
 
   for (const activeStandard of activeStandards) {
@@ -68,6 +95,7 @@ async function assignDailyStandards(
       .limit(1);
     const eligibleMembers = membersWithTitles.filter(
       (member) =>
+        !inactiveMemberIds.has(member.id) &&
         isDailyStandardPosition(member.title) &&
         normalizeDailyStandardRank(member.title) ===
           normalizeDailyStandardRank(activeStandard.dailyRank!),

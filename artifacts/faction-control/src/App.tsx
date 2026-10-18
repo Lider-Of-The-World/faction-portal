@@ -275,18 +275,33 @@ function DashboardDisciplineRoster({ user }: { user: SessionUser }) {
   const members = useListMembers({
     query: { queryKey: getListMembersQueryKey(), refetchInterval: 60000 },
   });
+  const inactivity = useInactivityRequests();
+  const today = moscowDateKey();
   const employees = useMemo(
     () => (members.data ?? []).filter((member) => member.role === 'employee'),
     [members.data],
   );
-  const summaries = useMemo(() => employees.map((member) => {
-    const history = (records.data ?? []).filter((record) => record.memberId === member.id);
-    return {
-      member,
-      warnings: history.filter((record) => record.type === 'warning' && record.status === 'active').length,
-      reprimands: history.filter((record) => record.type === 'reprimand' && record.status === 'active').length,
-    };
-  }), [employees, records.data]);
+  const summaries = useMemo(() => {
+    const approvedPeriods = (inactivity.data ?? [])
+      .filter((request) => request.status === 'approved' && request.endDate >= today)
+      .sort((a, b) => a.startDate.localeCompare(b.startDate));
+    const inactivityByMember = new Map<string, InactivityRequest>();
+    for (const request of approvedPeriods) {
+      const current = inactivityByMember.get(request.memberId);
+      if (!current || (request.startDate <= today && current.startDate > today)) {
+        inactivityByMember.set(request.memberId, request);
+      }
+    }
+    return employees.map((member) => {
+      const history = (records.data ?? []).filter((record) => record.memberId === member.id);
+      return {
+        member,
+        warnings: history.filter((record) => record.type === 'warning' && record.status === 'active').length,
+        reprimands: history.filter((record) => record.type === 'reprimand' && record.status === 'active').length,
+        inactivePeriod: inactivityByMember.get(member.id) ?? null,
+      };
+    });
+  }, [employees, records.data, inactivity.data, today]);
 
   return <section className="dashboard-discipline-card" aria-labelledby="dashboard-discipline-title">
     <div className="dashboard-discipline-header">
@@ -296,12 +311,12 @@ function DashboardDisciplineRoster({ user }: { user: SessionUser }) {
       </div>
       {manager && <Link href="/discipline" className="dashboard-discipline-link">Открыть реестр <ArrowUpRight size={15} /></Link>}
     </div>
-    {records.isLoading || members.isLoading ? <div className="dashboard-discipline-message" role="status">Загружаем дисциплинарную сводку…</div> :
-      records.isError || members.isError ? <InlineError message="Не удалось загрузить дисциплинарную сводку." onRetry={() => { void records.refetch(); void members.refetch(); }} /> :
+    {records.isLoading || members.isLoading || inactivity.isLoading ? <div className="dashboard-discipline-message" role="status">Загружаем дисциплинарную сводку…</div> :
+      records.isError || members.isError || inactivity.isError ? <InlineError message="Не удалось загрузить дисциплинарную сводку." onRetry={() => { void records.refetch(); void members.refetch(); void inactivity.refetch(); }} /> :
         !summaries.length ? <div className="dashboard-discipline-message">{manager ? 'Сотрудников пока нет.' : 'Профиль сотрудника не найден.'}</div> :
           <div className="dashboard-discipline-table" role="table" aria-label={manager ? 'Активные взыскания по сотрудникам' : 'Мои активные взыскания'}>
             <div className="dashboard-discipline-columns" role="row">
-              <span role="columnheader">СОТРУДНИК</span>
+              <span role="columnheader">СОТРУДНИК / НЕАКТИВ</span>
               <span role="columnheader">ПРЕДУПРЕЖДЕНИЯ</span>
               <span role="columnheader">ВЫГОВОРЫ</span>
             </div>
@@ -309,15 +324,14 @@ function DashboardDisciplineRoster({ user }: { user: SessionUser }) {
               <div className="dashboard-discipline-person" role="cell">
                 <strong>{summary.member.nickname}</strong>
                 <span>{summary.member.rank}</span>
+                {summary.inactivePeriod && <span className="dashboard-inactivity-period">Неактив с {formatInactivityDate(summary.inactivePeriod.startDate)} по {formatInactivityDate(summary.inactivePeriod.endDate)}</span>}
               </div>
-              <span className="dashboard-discipline-count dashboard-discipline-warning" role="cell" aria-label={`Активных предупреждений: ${summary.warnings}`}>{summary.warnings}<small> / 2</small></span>
-              <span className="dashboard-discipline-count dashboard-discipline-reprimand" role="cell" aria-label={`Активных выговоров: ${summary.reprimands}`}>{summary.reprimands}<small> / 3</small></span>
+              <span className="dashboard-discipline-count dashboard-discipline-warning" role="cell" aria-label={'Активных предупреждений: ' + summary.warnings}>{summary.warnings}<small> / 2</small></span>
+              <span className="dashboard-discipline-count dashboard-discipline-reprimand" role="cell" aria-label={'Активных выговоров: ' + summary.reprimands}>{summary.reprimands}<small> / 3</small></span>
             </div>)}
           </div>}
   </section>;
-}
-
-function StatCard({ label, value, note, icon: Icon, accent = false }: { label: string; value: string | number; note: string; icon: typeof Users; accent?: boolean }) { return <div className={`stat-card ${accent ? 'stat-accent' : ''}`}><div className="stat-top"><span>{label}</span><Icon size={17} /></div><div className="stat-number">{value}</div><div className="stat-note"><span className="stat-marker" />{note}</div></div>; }
+}function StatCard({ label, value, note, icon: Icon, accent = false }: { label: string; value: string | number; note: string; icon: typeof Users; accent?: boolean }) { return <div className={`stat-card ${accent ? 'stat-accent' : ''}`}><div className="stat-top"><span>{label}</span><Icon size={17} /></div><div className="stat-number">{value}</div><div className="stat-note"><span className="stat-marker" />{note}</div></div>; }
 
 function StandardsPage({ user }: { user: SessionUser }) {
   const qc = useQueryClient(); const manager = user.role !== 'employee';
@@ -586,6 +600,19 @@ function EventForm({ initial, pending, onCancel, onSubmit }: { initial: Event | 
 
 function formatInactivityDate(value: string) {
   return value.split("-").reverse().join(".");
+}
+
+function moscowDateKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Moscow",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  const day = parts.find((part) => part.type === "day")?.value ?? "";
+  return year + "-" + month + "-" + day;
 }
 
 function InactivityPage({ user }: { user: SessionUser }) {

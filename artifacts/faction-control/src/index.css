@@ -468,6 +468,7 @@ a { color: inherit; text-decoration: none; }
 .dashboard-discipline-person { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
 .dashboard-discipline-person strong { overflow: hidden; color: #e6e1dc; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .dashboard-discipline-person span { color: #85868b; font-size: 8px; }
+.dashboard-inactivity-period { color: #a7d2af !important; }
 .dashboard-discipline-count { justify-self: center; min-width: 48px; padding: 6px 8px; border: 1px solid; border-radius: 4px; text-align: center; font: 14px var(--app-font-serif); line-height: 1; }
 .dashboard-discipline-count small { color: #97918a; font: 9px var(--app-font-sans); }
 .dashboard-discipline-warning { color: #e5c487; background: #2a251b; border-color: #4a412c; }
