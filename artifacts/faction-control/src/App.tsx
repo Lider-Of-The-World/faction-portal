@@ -29,6 +29,7 @@ import {
   useAuditLogRecords, useDisciplineRecords, useIssueDiscipline, useRevokeDiscipline,
   type AuditCategory, type AuditLogEntry, type DisciplineRecord, type DisciplineType,
 } from './discipline-client';
+import { getInactivityRequestsQueryKey, useCreateInactivityRequest, useInactivityRequests, useReviewInactivityRequest, type InactivityRequest } from './inactivity-client';
 import type {
   Event, EventSubmission, Member, Standard, StandardAssignment, Task, SessionUser, Notification,
   StandardSubmission, TaskSubmission, SubmissionFile,
@@ -42,6 +43,7 @@ const NAV_ITEMS = [
   { href: '/dashboard', label: 'Обзор', icon: LayoutDashboard },
   { href: '/members', label: 'Состав', icon: Users, staff: true },
   { href: '/events', label: 'Мероприятия', icon: CalendarDays, staff: true },
+  { href: '/inactivity', label: 'Неактив', icon: Clock3 },
   { href: '/standards', label: 'Нормативы', icon: BookOpen },
   { href: '/tasks', label: 'Поручения', icon: ClipboardList },
   { href: '/notifications', label: 'Уведомления', icon: Bell },
@@ -123,6 +125,7 @@ function Router() {
     <Route path="/dashboard"><DashboardPage user={user} /></Route>
     <Route path="/members">{user.role !== 'employee' ? <MembersPage user={user} /> : <AccessDenied />}</Route>
     <Route path="/events">{user.role !== 'employee' ? <EventsPage user={user} /> : <EmployeeEventsPage />}</Route>
+    <Route path="/inactivity"><InactivityPage user={user} /></Route>
     <Route path="/standards"><StandardsPage user={user} /></Route>
     <Route path="/tasks"><TasksPage user={user} /></Route>
     <Route path="/notifications"><NotificationsPage /></Route>
@@ -578,6 +581,135 @@ function EventForm({ initial, pending, onCancel, onSubmit }: { initial: Event | 
   const localDate = (v?: string | null) => v ? new Date(new Date(v).getTime() - new Date(v).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '';
   const [title, setTitle] = useState(initial?.title ?? ''); const [description, setDescription] = useState(initial?.description ?? ''); const [startsAt, setStartsAt] = useState(localDate(initial?.startsAt)); const [endsAt, setEndsAt] = useState(localDate(initial?.endsAt));
   return <form className="dialog-form" onSubmit={(e) => { e.preventDefault(); if (new Date(endsAt) <= new Date(startsAt)) { alert('Время окончания должно быть позже времени начала.'); return; } onSubmit({ title, description, startsAt: new Date(startsAt).toISOString(), endsAt: new Date(endsAt).toISOString() }); }}><Field label="Название"><input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={160} required /></Field><div className="form-split"><Field label="Начало мероприятия — дата и время"><input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} required /></Field><Field label="Окончание мероприятия — дата и время"><input type="datetime-local" value={endsAt} min={startsAt || undefined} onChange={(e) => setEndsAt(e.target.value)} required /></Field></div><Field label="Описание"><textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={4000} /></Field><FormActions pending={pending} onCancel={onCancel} label="Сохранить" /></form>;
+}
+
+
+function formatInactivityDate(value: string) {
+  return value.split("-").reverse().join(".");
+}
+
+function InactivityPage({ user }: { user: SessionUser }) {
+  const qc = useQueryClient();
+  const requests = useInactivityRequests();
+  const create = useCreateInactivityRequest();
+  const review = useReviewInactivityRequest();
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [reason, setReason] = useState("");
+  const [filter, setFilter] = useState<"pending_review" | "all">("pending_review");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const manager = user.role !== "employee";
+  const allRequests = requests.data ?? [];
+  const pendingCount = allRequests.filter((item) => item.status === "pending_review").length;
+  const visibleRequests = manager
+    ? allRequests.filter((item) => filter === "all" || item.status === "pending_review")
+    : allRequests;
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError("");
+    setSuccess("");
+    create.mutate(
+      { startDate, endDate, reason: reason.trim() },
+      {
+        onSuccess: () => {
+          setStartDate("");
+          setEndDate("");
+          setReason("");
+          setSuccess("Заявка отправлена на проверку.");
+          invalidate(qc, getInactivityRequestsQueryKey());
+        },
+        onError: (issue) =>
+          setError(mutationErrorText(issue, "Не удалось отправить заявку.")),
+      },
+    );
+  };
+
+  const decide = (item: InactivityRequest, status: "approved" | "rejected") => {
+    setError("");
+    review.mutate(
+      { id: item.id, status },
+      {
+        onSuccess: () => invalidate(qc, getInactivityRequestsQueryKey()),
+        onError: (issue) =>
+          setError(mutationErrorText(issue, "Не удалось сохранить решение.")),
+      },
+    );
+  };
+
+  return <>
+    <PageHeading
+      eyebrow={manager ? "РАБОЧАЯ ЗОНА / СОГЛАСОВАНИЕ" : "РАБОЧАЯ ЗОНА / ЗАЯВКИ"}
+      title="Неактив"
+      description={manager
+        ? "Проверяйте периоды неактива сотрудников и принимайте решение по заявкам."
+        : "Укажите период отсутствия и причину — руководитель увидит заявку здесь."}
+    />
+    {manager ? <>
+      <div className="inactivity-review-toolbar">
+        <div className="filter-tabs" role="tablist" aria-label="Фильтр заявок на неактив">
+          <button type="button" role="tab" aria-selected={filter === "pending_review"} className={filter === "pending_review" ? "selected" : ""} onClick={() => setFilter("pending_review")}>На проверке <span>{pendingCount}</span></button>
+          <button type="button" role="tab" aria-selected={filter === "all"} className={filter === "all" ? "selected" : ""} onClick={() => setFilter("all")}>Все заявки <span>{allRequests.length}</span></button>
+        </div>
+      </div>
+      {error && <div className="form-error inactivity-action-error" role="alert">{error}</div>}
+      {requests.isLoading ? <PageSkeleton /> : requests.isError
+        ? <InlineError message="Не удалось загрузить заявки на неактив." onRetry={() => void requests.refetch()} />
+        : !visibleRequests.length
+          ? <EmptyState title={filter === "pending_review" ? "Нет заявок на проверку" : "Заявок пока нет"} text={filter === "pending_review" ? "Новые заявки сотрудников появятся здесь." : "Когда сотрудники подадут заявки, они появятся в этом списке."} />
+          : <div className="inactivity-request-list">
+            {visibleRequests.map((item) => <article className="inactivity-request-card" key={item.id}>
+              <div className="inactivity-request-header">
+                <div className="inactivity-person">
+                  <div className="avatar avatar-table">{initials(item.memberNickname)}</div>
+                  <div><strong>{item.memberNickname}</strong><span>{item.memberRank}</span></div>
+                </div>
+                <Badge status={item.status} />
+              </div>
+              <div className="inactivity-period">
+                <span>ПЕРИОД НЕАКТИВА</span>
+                <strong>{formatInactivityDate(item.startDate)} — {formatInactivityDate(item.endDate)}</strong>
+              </div>
+              <div className="inactivity-reason"><span>ПРИЧИНА</span><p>{item.reason}</p></div>
+              <div className="inactivity-request-meta">Подана {dateText(item.submittedAt, true)}{item.reviewerNickname ? " · Проверил(а): " + item.reviewerNickname : ""}</div>
+              {item.status === "pending_review" && <div className="inactivity-actions">
+                <button type="button" className="button button-danger-outline button-small" onClick={() => decide(item, "rejected")} disabled={review.isPending}>Отклонить</button>
+                <button type="button" className="button button-primary button-small" onClick={() => decide(item, "approved")} disabled={review.isPending}>Одобрить <Check size={14} /></button>
+              </div>}
+            </article>)}
+          </div>}
+    </> : <div className="inactivity-employee-grid">
+      <Panel title="Подать заявку" className="inactivity-panel">
+        <form className="dialog-form inactivity-form" onSubmit={submit}>
+          <div className="form-split">
+            <Field label="С какого числа"><input type="date" value={startDate} max={endDate || undefined} onChange={(event) => setStartDate(event.target.value)} required /></Field>
+            <Field label="По какое число"><input type="date" value={endDate} min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} required /></Field>
+          </div>
+          <Field label="Причина неактива"><textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={2000} rows={4} placeholder="Кратко объясните причину отсутствия" required /></Field>
+          {error && <div className="form-error" role="alert">{error}</div>}
+          {success && <div className="inactivity-form-success" role="status">{success}</div>}
+          <button className="button button-primary" type="submit" disabled={create.isPending}>{create.isPending ? "Отправляем…" : "Отправить заявку"} <ArrowUpRight size={15} /></button>
+        </form>
+      </Panel>
+      <Panel title="Мои заявки" meta={allRequests.length + " ВСЕГО"} className="inactivity-panel">
+        {requests.isLoading ? <PageSkeleton /> : requests.isError
+          ? <InlineError message="Не удалось загрузить историю заявок." onRetry={() => void requests.refetch()} />
+          : !allRequests.length
+            ? <EmptyState title="Заявок пока нет" text="Отправленные заявки и решения руководства появятся здесь." />
+            : <div className="inactivity-request-list">
+              {allRequests.map((item) => <article className="inactivity-request-card" key={item.id}>
+                <div className="inactivity-request-header">
+                  <div className="inactivity-period"><span>ПЕРИОД НЕАКТИВА</span><strong>{formatInactivityDate(item.startDate)} — {formatInactivityDate(item.endDate)}</strong></div>
+                  <Badge status={item.status} />
+                </div>
+                <div className="inactivity-reason"><span>ПРИЧИНА</span><p>{item.reason}</p></div>
+                <div className="inactivity-request-meta">Подана {dateText(item.submittedAt, true)}{item.reviewerNickname ? " · Решение: " + item.reviewerNickname : ""}</div>
+              </article>)}
+            </div>}
+      </Panel>
+    </div>}
+  </>;
 }
 
 function DisciplinePage() {

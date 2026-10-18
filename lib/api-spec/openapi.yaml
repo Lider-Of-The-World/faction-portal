@@ -17,6 +17,7 @@ tags:
   - name: standard-assignments
   - name: tasks
   - name: discipline
+  - name: inactivity
   - name: audit
   - name: storage
   - name: notifications
@@ -761,6 +762,55 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DisciplineRecord"
+  /inactivity-requests:
+    get:
+      operationId: listInactivityRequests
+      tags: [inactivity]
+      summary: Список заявок на неактив с учётом роли пользователя
+      responses:
+        "200":
+          description: Заявки на неактив
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/InactivityRequest" }
+    post:
+      operationId: createInactivityRequest
+      tags: [inactivity]
+      summary: Подать заявку на неактив от имени сотрудника
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InactivityRequestInput" }
+      responses:
+        "201":
+          description: Заявка отправлена на проверку
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InactivityRequest" }
+  /inactivity-requests/{id}/review:
+    patch:
+      operationId: reviewInactivityRequest
+      tags: [inactivity]
+      summary: Одобрить или отклонить заявку (только лидер или администратор)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InactivityRequestReviewInput" }
+      responses:
+        "200":
+          description: Решение сохранено
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InactivityRequest" }
   /audit-logs:
     get:
       operationId: listAuditLogs
@@ -1274,6 +1324,37 @@ components:
       required: [reason]
       properties:
         reason: { type: string, minLength: 3, maxLength: 2000 }
+    InactivityRequestStatus:
+      type: string
+      enum: [pending_review, approved, rejected]
+    InactivityRequest:
+      type: object
+      required: [id, memberId, memberNickname, memberRank, startDate, endDate, reason, status, submittedAt, reviewedAt, reviewerId, reviewerNickname]
+      properties:
+        id: { type: string, format: uuid }
+        memberId: { type: string, format: uuid }
+        memberNickname: { type: string }
+        memberRank: { type: string }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        reason: { type: string }
+        status: { $ref: "#/components/schemas/InactivityRequestStatus" }
+        submittedAt: { type: string, format: date-time }
+        reviewedAt: { type: ["string", "null"], format: date-time }
+        reviewerId: { type: ["string", "null"], format: uuid }
+        reviewerNickname: { type: ["string", "null"] }
+    InactivityRequestInput:
+      type: object
+      required: [startDate, endDate, reason]
+      properties:
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        reason: { type: string, minLength: 3, maxLength: 2000 }
+    InactivityRequestReviewInput:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [approved, rejected] }
     AuditLog:
       type: object
       required: [id, actorId, actorNickname, category, action, entityType, entityId, entityLabel, targetMemberId, targetMemberNickname, reason, details, createdAt]

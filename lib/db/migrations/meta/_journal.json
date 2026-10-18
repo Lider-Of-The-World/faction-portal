@@ -50,6 +50,13 @@
       "when": 1792299243002,
       "tag": "0006_melted_epoch",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792344784059,
+      "tag": "0007_inactivity_requests",
+      "breakpoints": true
     }
   ]
 }
