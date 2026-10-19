@@ -30,7 +30,7 @@ import {
   type AuditCategory, type AuditLogEntry, type DisciplineRecord, type DisciplineType,
 } from './discipline-client';
 import { getInactivityRequestsQueryKey, useCreateInactivityRequest, useInactivityRequests, useReviewInactivityRequest, type InactivityRequest } from './inactivity-client';
-import { getPointsQueryKey, useDeductPoints, usePoints } from './points-client';
+import { getPointsQueryKey, useAwardPoints, useDeductPoints, usePoints } from './points-client';
 import type {
   Event, EventSubmission, Member, Standard, StandardAssignment, Task, SessionUser, Notification,
   StandardSubmission, TaskSubmission, SubmissionFile,
@@ -278,7 +278,7 @@ function DashboardDisciplineRoster({ user }: { user: SessionUser }) {
   });
   const points = usePoints();
   const inactivity = useInactivityRequests();
-  const [pointTarget, setPointTarget] = useState<Member | null>(null);
+  const [pointAdjustment, setPointAdjustment] = useState<{ member: Member; mode: 'award' | 'deduct' } | null>(null);
   const today = moscowDateKey();
   const employees = useMemo(
     () => (members.data ?? []).filter((member) => member.role === 'employee'),
@@ -340,12 +340,12 @@ function DashboardDisciplineRoster({ user }: { user: SessionUser }) {
                 <span className="dashboard-discipline-count dashboard-discipline-reprimand" role="cell" aria-label={'Активных выговоров: ' + summary.reprimands}>{summary.reprimands}<small> / 3</small></span>
                 <div className="dashboard-point-cell" role="cell">
                   <strong className="dashboard-point-value">{summary.points > 0 ? '+' + summary.points : summary.points}</strong>
-                  {manager && <button className="dashboard-point-deduct" type="button" aria-label={'Списать баллы: ' + summary.member.nickname} title="Списать баллы" onClick={() => setPointTarget(summary.member)}>−</button>}
+                  {manager && <div className="dashboard-point-actions"><button className="dashboard-point-award" type="button" aria-label={'Начислить баллы: ' + summary.member.nickname} title="Начислить баллы" onClick={() => setPointAdjustment({ member: summary.member, mode: 'award' })}>+</button><button className="dashboard-point-deduct" type="button" aria-label={'Списать баллы: ' + summary.member.nickname} title="Списать баллы" onClick={() => setPointAdjustment({ member: summary.member, mode: 'deduct' })}>−</button></div>}
                 </div>
               </div>)}
             </div>}
     </section>
-    <PointsDeductionModal member={pointTarget} currentPoints={pointTarget ? pointsByMember.get(pointTarget.id) ?? 0 : undefined} onClose={() => setPointTarget(null)} />
+    <PointsAdjustmentModal member={pointAdjustment?.member ?? null} mode={pointAdjustment?.mode ?? 'deduct'} currentPoints={pointAdjustment ? pointsByMember.get(pointAdjustment.member.id) ?? 0 : undefined} onClose={() => setPointAdjustment(null)} />
   </>;
 }
 function StatCard({ label, value, note, icon: Icon, accent = false }: { label: string; value: string | number; note: string; icon: typeof Users; accent?: boolean }) { return <div className={`stat-card ${accent ? 'stat-accent' : ''}`}><div className="stat-top"><span>{label}</span><Icon size={17} /></div><div className="stat-number">{value}</div><div className="stat-note"><span className="stat-marker" />{note}</div></div>; }
@@ -546,7 +546,7 @@ function MembersPage({ user }: { user: SessionUser }) {
   const points = usePoints();
   const create = useCreateMember(); const update = useUpdateMember(); const remove = useDeleteMember();
   const [search, setSearch] = useState(''); const [editing, setEditing] = useState<Member | null>(null); const [creating, setCreating] = useState(false); const [credentials, setCredentials] = useState<{ nickname: string; password: string } | null>(null);
-  const [pointTarget, setPointTarget] = useState<Member | null>(null);
+  const [pointAdjustment, setPointAdjustment] = useState<{ member: Member; mode: 'award' | 'deduct' } | null>(null);
   const [memberError, setMemberError] = useState('');
   const leader = user.role === 'leader';
   const pointsByMember = useMemo(() => new Map((points.data ?? []).map((balance) => [balance.memberId, balance.points])), [points.data]);
@@ -560,19 +560,22 @@ function MembersPage({ user }: { user: SessionUser }) {
   if (query.isError || points.isError) return <InlineError message="Не удалось загрузить состав и баллы сотрудников." onRetry={() => { void query.refetch(); void points.refetch(); }} />;
   return <><PageHeading eyebrow="УПРАВЛЕНИЕ / СОСТАВ" title="Личный состав" description="Звания, статус доступа и баллы сотрудников." action={<button className="button button-primary" onClick={() => { setMemberError(''); setCreating(true); }}><Plus size={16} /> Добавить участника</button>} />
     <div className="list-toolbar"><div className="search-box"><Search size={16} /><input placeholder="Поиск по имени или званию" value={search} onChange={(e) => setSearch(e.target.value)} /></div><span className="toolbar-count">{filtered.length} УЧАСТНИКОВ</span></div>
-    {!filtered.length ? <EmptyState title="Никого не найдено" text="Измените запрос или добавьте сотрудника." /> : <div className="table-panel"><div className="table-scroll"><table className="data-table"><thead><tr><th>СОТРУДНИК</th><th>ЗВАНИЕ</th><th>СТАТУС</th><th>БАЛЛЫ</th><th>ПОСЛЕДНИЙ ВХОД</th><th /></tr></thead><tbody>{filtered.map((m) => <tr key={m.id}><td><div className="table-person"><div className="avatar avatar-table">{initials(m.nickname)}</div><div><strong>{m.nickname}</strong><span>В составе с {dateText(m.createdAt)}</span></div></div></td><td>{memberTitle(m.role, m.rank)}</td><td><Badge status={m.status} /></td><td><span className="member-points">{m.role === 'employee' ? pointsByMember.get(m.id) ?? 0 : '—'}</span></td><td>{dateText(m.lastLogin, true)}</td><td><div className="member-actions">{m.role === 'employee' && <button className="icon-button points-deduct-action" aria-label={'Списать баллы: ' + m.nickname} title="Списать баллы" onClick={() => setPointTarget(m)}>−</button>}<button className="icon-button" aria-label={'Изменить ' + m.nickname} onClick={() => { setMemberError(''); setEditing(m); }}><Pencil size={15} /></button>{m.role === 'employee' && <button className="icon-button danger-icon" aria-label={'Исключить ' + m.nickname + ' из состава'} title="Исключить из состава" disabled={remove.isPending} onClick={() => { if (confirm('Исключить ' + m.nickname + ' из состава? Его доступ будет отключён, а история нормативов и поручений сохранится.')) remove.mutate({ id: m.id }, { onSuccess: () => { invalidate(qc, getListMembersQueryKey(), getGetDashboardQueryKey()); }, onError: (error) => alert(mutationErrorText(error, 'Не удалось исключить сотрудника из состава.')) }); }}><Trash2 size={15} /></button>}</div></td></tr>)}</tbody></table></div></div>}
-    <div className="list-bottom-note"><Shield size={14} />{leader ? 'Лидер может изменять звания, управлять статусом доступа и списывать баллы.' : 'Администратор может изменять звания, исключать сотрудников из состава и списывать баллы.'}</div>
+    {!filtered.length ? <EmptyState title="Никого не найдено" text="Измените запрос или добавьте сотрудника." /> : <div className="table-panel"><div className="table-scroll"><table className="data-table"><thead><tr><th>СОТРУДНИК</th><th>ЗВАНИЕ</th><th>СТАТУС</th><th>БАЛЛЫ</th><th>ПОСЛЕДНИЙ ВХОД</th><th /></tr></thead><tbody>{filtered.map((m) => <tr key={m.id}><td><div className="table-person"><div className="avatar avatar-table">{initials(m.nickname)}</div><div><strong>{m.nickname}</strong><span>В составе с {dateText(m.createdAt)}</span></div></div></td><td>{memberTitle(m.role, m.rank)}</td><td><Badge status={m.status} /></td><td><span className="member-points">{m.role === 'employee' ? pointsByMember.get(m.id) ?? 0 : '—'}</span></td><td>{dateText(m.lastLogin, true)}</td><td><div className="member-actions">{m.role === 'employee' && <><button className="icon-button points-award-action" aria-label={'Начислить баллы: ' + m.nickname} title="Начислить баллы" onClick={() => setPointAdjustment({ member: m, mode: 'award' })}>+</button><button className="icon-button points-deduct-action" aria-label={'Списать баллы: ' + m.nickname} title="Списать баллы" onClick={() => setPointAdjustment({ member: m, mode: 'deduct' })}>−</button></>}<button className="icon-button" aria-label={'Изменить ' + m.nickname} onClick={() => { setMemberError(''); setEditing(m); }}><Pencil size={15} /></button>{m.role === 'employee' && <button className="icon-button danger-icon" aria-label={'Исключить ' + m.nickname + ' из состава'} title="Исключить из состава" disabled={remove.isPending} onClick={() => { if (confirm('Исключить ' + m.nickname + ' из состава? Его доступ будет отключён, а история нормативов и поручений сохранится.')) remove.mutate({ id: m.id }, { onSuccess: () => { invalidate(qc, getListMembersQueryKey(), getGetDashboardQueryKey()); }, onError: (error) => alert(mutationErrorText(error, 'Не удалось исключить сотрудника из состава.')) }); }}><Trash2 size={15} /></button>}</div></td></tr>)}</tbody></table></div></div>}
+    <div className="list-bottom-note"><Shield size={14} />{leader ? 'Лидер может изменять звания, управлять статусом доступа, начислять и списывать баллы.' : 'Администратор может изменять звания, исключать сотрудников из состава, начислять и списывать баллы.'}</div>
     {(creating || editing) && <Modal title={editing ? 'Карточка сотрудника' : 'Новый участник'} subtitle={editing?.nickname ?? 'Создание доступа в систему Правительства области'} onClose={() => { setCreating(false); setEditing(null); }}><MemberForm initial={editing} leader={leader} pending={create.isPending || update.isPending} error={memberError} onCancel={() => { setCreating(false); setEditing(null); }} onSubmit={save} /></Modal>}
     {credentials && <Modal title="Доступ создан" subtitle={'Учётная запись ' + credentials.nickname} onClose={() => setCredentials(null)}><div className="credentials-panel"><strong>Временный пароль</strong><code>{credentials.password}</code><p>Показывается один раз. Передайте его сотруднику безопасно.</p><button className="button button-secondary" onClick={() => void navigator.clipboard?.writeText(credentials.password)}>Копировать</button></div></Modal>}
-    <PointsDeductionModal member={pointTarget} currentPoints={pointTarget ? pointsByMember.get(pointTarget.id) ?? 0 : undefined} onClose={() => setPointTarget(null)} />
+    <PointsAdjustmentModal member={pointAdjustment?.member ?? null} mode={pointAdjustment?.mode ?? 'deduct'} currentPoints={pointAdjustment ? pointsByMember.get(pointAdjustment.member.id) ?? 0 : undefined} onClose={() => setPointAdjustment(null)} />
   </>;
 }
 
-function PointsDeductionModal({ member, currentPoints, onClose }: { member: Member | null; currentPoints?: number; onClose: () => void }) {
+function PointsAdjustmentModal({ member, mode, currentPoints, onClose }: { member: Member | null; mode: 'award' | 'deduct'; currentPoints?: number; onClose: () => void }) {
   const qc = useQueryClient();
+  const award = useAwardPoints();
   const deduct = useDeductPoints();
   const [error, setError] = useState('');
-  useEffect(() => { setError(''); }, [member?.id]);
+  const isAward = mode === 'award';
+  const pending = award.isPending || deduct.isPending;
+  useEffect(() => { setError(''); }, [member?.id, mode]);
   if (!member) return null;
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -580,17 +583,18 @@ function PointsDeductionModal({ member, currentPoints, onClose }: { member: Memb
     const form = new FormData(event.currentTarget);
     const amount = Number(form.get('amount'));
     const reason = String(form.get('reason') ?? '').trim();
-    deduct.mutate({ memberId: member.id, amount, reason }, {
+    const mutation = isAward ? award : deduct;
+    mutation.mutate({ memberId: member.id, amount, reason }, {
       onSuccess: () => { invalidate(qc, getPointsQueryKey(), getListMembersQueryKey(), getGetDashboardQueryKey()); onClose(); },
-      onError: (issue) => setError(mutationErrorText(issue, 'Не удалось списать баллы.')),
+      onError: (issue) => setError(mutationErrorText(issue, isAward ? 'Не удалось начислить баллы.' : 'Не удалось списать баллы.')),
     });
   };
-  return <Modal title="Списание баллов" subtitle={'Сотрудник ' + member.nickname + (currentPoints === undefined ? '' : ' · сейчас ' + currentPoints + ' баллов')} onClose={onClose} closeDisabled={deduct.isPending}>
+  return <Modal title={isAward ? 'Начисление баллов' : 'Списание баллов'} subtitle={'Сотрудник ' + member.nickname + (currentPoints === undefined ? '' : ' · сейчас ' + currentPoints + ' баллов')} onClose={onClose} closeDisabled={pending}>
     <form className="dialog-form" onSubmit={submit}>
       <Field label="Количество баллов"><input name="amount" type="number" min={1} max={1000000} step={1} defaultValue={1} required /></Field>
-      <Field label="Причина списания"><textarea name="reason" minLength={3} maxLength={400} required placeholder="Укажите причину изменения баланса" /></Field>
+      <Field label={isAward ? 'Причина начисления' : 'Причина списания'}><textarea name="reason" minLength={3} maxLength={400} required placeholder="Укажите причину изменения баланса" /></Field>
       {error && <div className="form-error" role="alert">{error}</div>}
-      <FormActions pending={deduct.isPending} onCancel={onClose} label="Списать баллы" />
+      <FormActions pending={pending} onCancel={onClose} label={isAward ? 'Начислить баллы' : 'Списать баллы'} />
     </form>
   </Modal>;
 }

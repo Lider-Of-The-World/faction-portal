@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  pointsAwardDelta,
   pointsDeductionDelta,
   standardPointsDelta,
   standardPointsRequestKey,
@@ -25,4 +26,11 @@ test("manual point deductions accept only positive safe integers", () => {
   assert.throws(() => pointsDeductionDelta(0));
   assert.throws(() => pointsDeductionDelta(-1));
   assert.throws(() => pointsDeductionDelta(1.5));
+});
+
+test("manual point awards accept only positive safe integers", () => {
+  assert.equal(pointsAwardDelta(7), 7);
+  assert.throws(() => pointsAwardDelta(0));
+  assert.throws(() => pointsAwardDelta(-1));
+  assert.throws(() => pointsAwardDelta(1.5));
 });

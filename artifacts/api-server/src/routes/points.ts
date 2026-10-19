@@ -1,10 +1,10 @@
 import { and, asc, eq, ne } from "drizzle-orm";
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
 import { db, membersTable } from "@workspace/db";
 import { requireManager, requireReadyAuth } from "../lib/auth";
 import { recordPointChange } from "../lib/points";
-import { pointsDeductionDelta } from "../lib/points-rules";
+import { pointsAwardDelta, pointsDeductionDelta } from "../lib/points-rules";
 
 const router: IRouter = Router();
 const pointMemberParams = z.object({ memberId: z.string().uuid() });
@@ -29,13 +29,14 @@ router.get("/points", requireReadyAuth, async (req, res): Promise<void> => {
   res.json(rows.map((row) => ({ memberId: row.memberId, points: row.points })));
 });
 
-router.post("/points/:memberId/deduct", requireReadyAuth, async (req, res): Promise<void> => {
+async function changeManualPoints(req: Request, res: Response, direction: "award" | "deduct"): Promise<void> {
   const viewer = req.factionUser!;
   if (!requireManager(req, res)) return;
   const params = pointMemberParams.safeParse(req.params);
   const body = pointDeductionBody.safeParse(req.body);
+  const operation = direction === "award" ? "начисления" : "списания";
   if (!params.success || !body.success) {
-    res.status(400).json({ error: "Укажите сотрудника, положительное целое число баллов и причину списания." });
+    res.status(400).json({ error: "Укажите сотрудника, положительное целое число баллов и причину " + operation + "." });
     return;
   }
 
@@ -49,7 +50,9 @@ router.post("/points/:memberId/deduct", requireReadyAuth, async (req, res): Prom
       return { kind: "not_found" as const };
     }
 
-    const delta = pointsDeductionDelta(body.data.amount);
+    const delta = direction === "award"
+      ? pointsAwardDelta(body.data.amount)
+      : pointsDeductionDelta(body.data.amount);
     await recordPointChange(tx, {
       memberId: target.id,
       memberNickname: target.nickname,
@@ -73,6 +76,13 @@ router.post("/points/:memberId/deduct", requireReadyAuth, async (req, res): Prom
     return;
   }
   res.json({ memberId: result.memberId, points: result.points });
+}
+
+router.post("/points/:memberId/deduct", requireReadyAuth, async (req, res): Promise<void> => {
+  await changeManualPoints(req, res, "deduct");
 });
 
+router.post("/points/:memberId/award", requireReadyAuth, async (req, res): Promise<void> => {
+  await changeManualPoints(req, res, "award");
+});
 export default router;
