@@ -21,6 +21,6 @@ test("inactivity daily-cycle bounds include the first and last approved days", (
     endDate: "2026-10-25",
   });
 
-  assert.equal(bounds.firstDueAt.toISOString(), "2026-10-20T21:00:00.000Z");
-  assert.equal(bounds.lastDueAt.toISOString(), "2026-10-25T21:00:00.000Z");
+  assert.equal(bounds.firstDueAt.toISOString(), "2026-10-20T20:59:00.000Z");
+  assert.equal(bounds.lastDueAt.toISOString(), "2026-10-25T20:59:00.000Z");
 });
