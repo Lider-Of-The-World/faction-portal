@@ -21,6 +21,8 @@ import {
 import { titleForMember } from "./member-ranks";
 import { issueStandardFailureDiscipline } from "./standard-discipline";
 import { formatStandardFailureReason } from "./standard-failure-rules";
+import { recordPointChange } from "./points";
+import { standardPointsDelta, standardPointsSource } from "./points-rules";
 
 const DAILY_STANDARD_JOB = "daily-standard-rollover";
 const STANDARD_FAILURE_BACKFILL_JOB = "standard-failure-warning-backfill-v1";
@@ -334,6 +336,17 @@ export async function runDailyStandardCycle(now = new Date()) {
           assignment.title,
           "не сдан в срок (" + moscowDateLabel(assignment.dueAt) + " до 23:59 МСК).",
         );
+        const missingPointsDelta = standardPointsDelta("not_submitted");
+        const missingPointsRecorded = await recordPointChange(tx, {
+          memberId: assignment.assigneeId,
+          memberNickname: assignment.assigneeNickname,
+          delta: missingPointsDelta,
+          reason: failureReason,
+          source: standardPointsSource("not_submitted"),
+          assignmentId: assignment.id,
+          actorId: assignment.assignedById,
+          actorNickname: assignment.issuerNickname,
+        });
         const disciplineIssue = await issueStandardFailureDiscipline(tx, {
           assignmentId: assignment.id,
           memberId: assignment.assigneeId,
@@ -355,7 +368,7 @@ export async function runDailyStandardCycle(now = new Date()) {
           recipientId: assignment.assigneeId,
           kind: "standard_auto_closed",
           title: disciplineNotice.title,
-          message: message + disciplineNotice.message,
+          message: message + disciplineNotice.message + (missingPointsRecorded ? " Списано 2 балла за несданный норматив." : ""),
           relatedType: "standard_assignment",
           relatedId: assignment.id,
         });

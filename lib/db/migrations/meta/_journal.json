@@ -57,6 +57,13 @@
       "when": 1792344784059,
       "tag": "0007_inactivity_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792398369903,
+      "tag": "0008_employee_points",
+      "breakpoints": true
     }
   ]
 }

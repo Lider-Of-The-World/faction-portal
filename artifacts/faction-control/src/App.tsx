@@ -30,6 +30,7 @@ import {
   type AuditCategory, type AuditLogEntry, type DisciplineRecord, type DisciplineType,
 } from './discipline-client';
 import { getInactivityRequestsQueryKey, useCreateInactivityRequest, useInactivityRequests, useReviewInactivityRequest, type InactivityRequest } from './inactivity-client';
+import { getPointsQueryKey, useDeductPoints, usePoints } from './points-client';
 import type {
   Event, EventSubmission, Member, Standard, StandardAssignment, Task, SessionUser, Notification,
   StandardSubmission, TaskSubmission, SubmissionFile,
@@ -275,11 +276,17 @@ function DashboardDisciplineRoster({ user }: { user: SessionUser }) {
   const members = useListMembers({
     query: { queryKey: getListMembersQueryKey(), refetchInterval: 60000 },
   });
+  const points = usePoints();
   const inactivity = useInactivityRequests();
+  const [pointTarget, setPointTarget] = useState<Member | null>(null);
   const today = moscowDateKey();
   const employees = useMemo(
     () => (members.data ?? []).filter((member) => member.role === 'employee'),
     [members.data],
+  );
+  const pointsByMember = useMemo(
+    () => new Map((points.data ?? []).map((balance) => [balance.memberId, balance.points])),
+    [points.data],
   );
   const summaries = useMemo(() => {
     const approvedPeriods = (inactivity.data ?? [])
@@ -298,41 +305,49 @@ function DashboardDisciplineRoster({ user }: { user: SessionUser }) {
         member,
         warnings: history.filter((record) => record.type === 'warning' && record.status === 'active').length,
         reprimands: history.filter((record) => record.type === 'reprimand' && record.status === 'active').length,
+        points: pointsByMember.get(member.id) ?? 0,
         inactivePeriod: inactivityByMember.get(member.id) ?? null,
       };
     });
-  }, [employees, records.data, inactivity.data, today]);
+  }, [employees, records.data, pointsByMember, inactivity.data, today]);
 
-  return <section className="dashboard-discipline-card" aria-labelledby="dashboard-discipline-title">
-    <div className="dashboard-discipline-header">
-      <div>
-        <div className="dashboard-discipline-kicker"><span className="status-pulse" /> АКТИВНЫЕ ВЗЫСКАНИЯ</div>
-        <h2 id="dashboard-discipline-title">{manager ? 'Взыскания сотрудников' : 'Мои взыскания'}</h2>
+  return <>
+    <section className="dashboard-discipline-card" aria-labelledby="dashboard-discipline-title">
+      <div className="dashboard-discipline-header">
+        <div>
+          <div className="dashboard-discipline-kicker"><span className="status-pulse" /> АКТИВНЫЕ ВЗЫСКАНИЯ</div>
+          <h2 id="dashboard-discipline-title">{manager ? 'Взыскания сотрудников' : 'Мои взыскания'}</h2>
+        </div>
+        {manager && <Link href="/discipline" className="dashboard-discipline-link">Открыть реестр <ArrowUpRight size={15} /></Link>}
       </div>
-      {manager && <Link href="/discipline" className="dashboard-discipline-link">Открыть реестр <ArrowUpRight size={15} /></Link>}
-    </div>
-    {records.isLoading || members.isLoading || inactivity.isLoading ? <div className="dashboard-discipline-message" role="status">Загружаем дисциплинарную сводку…</div> :
-      records.isError || members.isError || inactivity.isError ? <InlineError message="Не удалось загрузить дисциплинарную сводку." onRetry={() => { void records.refetch(); void members.refetch(); void inactivity.refetch(); }} /> :
-        !summaries.length ? <div className="dashboard-discipline-message">{manager ? 'Сотрудников пока нет.' : 'Профиль сотрудника не найден.'}</div> :
-          <div className="dashboard-discipline-table" role="table" aria-label={manager ? 'Активные взыскания по сотрудникам' : 'Мои активные взыскания'}>
-            <div className="dashboard-discipline-columns" role="row">
-              <span role="columnheader">СОТРУДНИК / НЕАКТИВ</span>
-              <span role="columnheader">ПРЕДУПРЕЖДЕНИЯ</span>
-              <span role="columnheader">ВЫГОВОРЫ</span>
-            </div>
-            {summaries.map((summary) => <div className="dashboard-discipline-row" role="row" key={summary.member.id}>
-              <div className="dashboard-discipline-person" role="cell">
-                <strong>{summary.member.nickname}</strong>
-                <span>{summary.member.rank}</span>
-                {summary.inactivePeriod && <span className="dashboard-inactivity-period">Неактив с {formatInactivityDate(summary.inactivePeriod.startDate)} по {formatInactivityDate(summary.inactivePeriod.endDate)}</span>}
+      {records.isLoading || members.isLoading || points.isLoading || inactivity.isLoading ? <div className="dashboard-discipline-message" role="status">Загружаем дисциплинарную сводку…</div> :
+        records.isError || members.isError || points.isError || inactivity.isError ? <InlineError message="Не удалось загрузить дисциплинарную сводку." onRetry={() => { void records.refetch(); void members.refetch(); void points.refetch(); void inactivity.refetch(); }} /> :
+          !summaries.length ? <div className="dashboard-discipline-message">{manager ? 'Сотрудников пока нет.' : 'Профиль сотрудника не найден.'}</div> :
+            <div className="dashboard-discipline-table" role="table" aria-label={manager ? 'Активные взыскания и баллы по сотрудникам' : 'Мои активные взыскания и баллы'}>
+              <div className="dashboard-discipline-columns" role="row">
+                <span role="columnheader">СОТРУДНИК / НЕАКТИВ</span>
+                <span role="columnheader">ПРЕДУПР.</span>
+                <span role="columnheader">ВЫГОВОРЫ</span>
+                <span role="columnheader">БАЛЛЫ</span>
               </div>
-              <span className="dashboard-discipline-count dashboard-discipline-warning" role="cell" aria-label={'Активных предупреждений: ' + summary.warnings}>{summary.warnings}<small> / 2</small></span>
-              <span className="dashboard-discipline-count dashboard-discipline-reprimand" role="cell" aria-label={'Активных выговоров: ' + summary.reprimands}>{summary.reprimands}<small> / 3</small></span>
-            </div>)}
-          </div>}
-  </section>;
+              {summaries.map((summary) => <div className="dashboard-discipline-row" role="row" key={summary.member.id}>
+                <div className="dashboard-discipline-person" role="cell">
+                  <strong>{summary.member.nickname}</strong>
+                  <span>{summary.member.rank}</span>
+                  {summary.inactivePeriod && <span className="dashboard-inactivity-period">Неактив с {formatInactivityDate(summary.inactivePeriod.startDate)} по {formatInactivityDate(summary.inactivePeriod.endDate)}</span>}
+                </div>
+                <span className="dashboard-discipline-count dashboard-discipline-warning" role="cell" aria-label={'Активных предупреждений: ' + summary.warnings}>{summary.warnings}<small> / 2</small></span>
+                <span className="dashboard-discipline-count dashboard-discipline-reprimand" role="cell" aria-label={'Активных выговоров: ' + summary.reprimands}>{summary.reprimands}<small> / 3</small></span>
+                <div className="dashboard-point-cell" role="cell">
+                  <strong className="dashboard-point-value">{summary.points > 0 ? '+' + summary.points : summary.points}</strong>
+                  {manager && <button className="dashboard-point-deduct" type="button" aria-label={'Списать баллы: ' + summary.member.nickname} title="Списать баллы" onClick={() => setPointTarget(summary.member)}>−</button>}
+                </div>
+              </div>)}
+            </div>}
+    </section>
+    <PointsDeductionModal member={pointTarget} currentPoints={pointTarget ? pointsByMember.get(pointTarget.id) ?? 0 : undefined} onClose={() => setPointTarget(null)} />
+  </>;
 }
-
 function StatCard({ label, value, note, icon: Icon, accent = false }: { label: string; value: string | number; note: string; icon: typeof Users; accent?: boolean }) { return <div className={`stat-card ${accent ? 'stat-accent' : ''}`}><div className="stat-top"><span>{label}</span><Icon size={17} /></div><div className="stat-number">{value}</div><div className="stat-note"><span className="stat-marker" />{note}</div></div>; }
 
 function StandardsPage({ user }: { user: SessionUser }) {
@@ -387,9 +402,11 @@ function StandardAssignmentHistory({ id, manager, onClose, onReviewed }: { id: s
   const review = useReviewStandardSubmission(); const [decision, setDecision] = useState<'approved' | 'rejected'>('approved'); const [reason, setReason] = useState('');
   if (query.isLoading) return <PageSkeleton />;
   if (query.isError) return <InlineError message="История нормативов недоступна." onRetry={() => void query.refetch()} />;
-  const pending = query.data?.find((s) => s.status === 'pending_review');
+  const pending = query.data?.find((s) => s.status === 'pending_review' && s.files.length > 0);
+  const automaticallyMissed = query.data?.some((s) => s.status === 'pending_review' && s.files.length === 0);
   const submitReview = () => { if (!pending || reason.trim().length < 1) return; review.mutate({ id: pending.id, data: { status: decision, reason: reason.trim() } }, { onSuccess: () => { void query.refetch(); onReviewed(); setReason(''); }, onError: () => alert('Не удалось сохранить решение.') }); };
   return <div className="submission-history">{!query.data?.length ? <EmptyState title="Отправок ещё нет" text="Когда сотрудник прикрепит подтверждение, история появится здесь." /> : query.data.map((item) => <SubmissionEntry key={item.id} item={item} />)}
+    {manager && automaticallyMissed && <div className="review-note"><strong>Норматив не сдан в срок</strong><span>Баллы за пропуск уже списаны. Отчёт без подтверждения нельзя одобрить.</span></div>}
     {manager && pending && <div className="review-box"><div className="section-kicker"><span /> РЕШЕНИЕ ПО ОТЧЁТУ</div><Field label="Решение"><select value={decision} onChange={(e) => setDecision(e.target.value as typeof decision)}><option value="approved">Принять</option><option value="rejected">Отклонить</option></select></Field><Field label="Обязательная причина / комментарий"><textarea value={reason} onChange={(e) => setReason(e.target.value)} maxLength={2000} rows={3} required placeholder="Объясните решение сотруднику" /></Field><div className="dialog-actions"><button className="button button-secondary" onClick={onClose}>Закрыть</button><button className="button button-primary" disabled={review.isPending || !reason.trim()} onClick={submitReview}>{review.isPending ? 'Сохраняем…' : 'Зафиксировать решение'} <Check size={15} /></button></div></div>}
   </div>;
 }
@@ -524,19 +541,58 @@ function NotificationsPage() {
 }
 
 function MembersPage({ user }: { user: SessionUser }) {
-  const qc = useQueryClient(); const query = useListMembers({ query: { queryKey: getListMembersQueryKey(), refetchOnMount: 'always' } });
-  const create = useCreateMember(); const update = useUpdateMember(); const remove = useDeleteMember(); const [search, setSearch] = useState(''); const [editing, setEditing] = useState<Member | null>(null); const [creating, setCreating] = useState(false); const [credentials, setCredentials] = useState<{ nickname: string; password: string } | null>(null);
+  const qc = useQueryClient();
+  const query = useListMembers({ query: { queryKey: getListMembersQueryKey(), refetchOnMount: 'always' } });
+  const points = usePoints();
+  const create = useCreateMember(); const update = useUpdateMember(); const remove = useDeleteMember();
+  const [search, setSearch] = useState(''); const [editing, setEditing] = useState<Member | null>(null); const [creating, setCreating] = useState(false); const [credentials, setCredentials] = useState<{ nickname: string; password: string } | null>(null);
+  const [pointTarget, setPointTarget] = useState<Member | null>(null);
   const [memberError, setMemberError] = useState('');
-  const leader = user.role === 'leader'; const filtered = (query.data ?? []).filter((m) => `${m.nickname} ${memberTitle(m.role, m.rank)}`.toLowerCase().includes(search.toLowerCase()));
+  const leader = user.role === 'leader';
+  const pointsByMember = useMemo(() => new Map((points.data ?? []).map((balance) => [balance.memberId, balance.points])), [points.data]);
+  const filtered = (query.data ?? []).filter((m) => (m.nickname + ' ' + memberTitle(m.role, m.rank)).toLowerCase().includes(search.toLowerCase()));
   const save = (data: { nickname?: string; rank: string; status?: 'active' | 'blocked' }) => {
     setMemberError('');
     if (editing) update.mutate({ id: editing.id, data }, { onSuccess: () => { invalidate(qc, getListMembersQueryKey()); setEditing(null); }, onError: (error) => setMemberError(mutationErrorText(error, 'Не удалось сохранить изменения.')) });
     else create.mutate({ data: { nickname: data.nickname!, rank: data.rank } }, { onSuccess: (result) => { invalidate(qc, getListMembersQueryKey()); setCreating(false); setCredentials({ nickname: result.member.nickname, password: result.temporaryPassword }); }, onError: (error) => setMemberError(mutationErrorText(error, 'Не удалось добавить участника.')) });
   };
-  return <><PageHeading eyebrow="УПРАВЛЕНИЕ / СОСТАВ" title="Личный состав" description="Звания и статус доступа сотрудников." action={<button className="button button-primary" onClick={() => { setMemberError(''); setCreating(true); }}><Plus size={16} /> Добавить участника</button>} /><div className="list-toolbar"><div className="search-box"><Search size={16} /><input placeholder="Поиск по имени или званию" value={search} onChange={(e) => setSearch(e.target.value)} /></div><span className="toolbar-count">{filtered.length} УЧАСТНИКОВ</span></div>{query.isLoading ? <PageSkeleton /> : query.isError ? <InlineError message="Не удалось загрузить состав." onRetry={() => void query.refetch()} /> : !filtered.length ? <EmptyState title="Никого не найдено" text="Измените запрос или добавьте сотрудника." /> : <div className="table-panel"><div className="table-scroll"><table className="data-table"><thead><tr><th>СОТРУДНИК</th><th>ЗВАНИЕ</th><th>СТАТУС</th><th>ПОСЛЕДНИЙ ВХОД</th><th /></tr></thead><tbody>{filtered.map((m) => <tr key={m.id}><td><div className="table-person"><div className="avatar avatar-table">{initials(m.nickname)}</div><div><strong>{m.nickname}</strong><span>В составе с {dateText(m.createdAt)}</span></div></div></td><td>{memberTitle(m.role, m.rank)}</td><td><Badge status={m.status} /></td><td>{dateText(m.lastLogin, true)}</td><td><div className="member-actions"><button className="icon-button" aria-label={`Изменить ${m.nickname}`} onClick={() => { setMemberError(''); setEditing(m); }}><Pencil size={15} /></button>{m.role === 'employee' && <button className="icon-button danger-icon" aria-label={`Исключить ${m.nickname} из состава`} title="Исключить из состава" disabled={remove.isPending} onClick={() => { if (confirm(`Исключить ${m.nickname} из состава? Его доступ будет отключён, а история нормативов и поручений сохранится.`)) remove.mutate({ id: m.id }, { onSuccess: () => { invalidate(qc, getListMembersQueryKey(), getGetDashboardQueryKey()); }, onError: (error) => alert(mutationErrorText(error, 'Не удалось исключить сотрудника из состава.')) }); }}><Trash2 size={15} /></button>}</div></td></tr>)}</tbody></table></div></div>}<div className="list-bottom-note"><Shield size={14} />{leader ? 'Лидер может изменять звания и управлять статусом доступа.' : 'Администратор может изменять звания и исключать сотрудников из состава.'}</div>
+  if (query.isLoading || points.isLoading) return <PageSkeleton />;
+  if (query.isError || points.isError) return <InlineError message="Не удалось загрузить состав и баллы сотрудников." onRetry={() => { void query.refetch(); void points.refetch(); }} />;
+  return <><PageHeading eyebrow="УПРАВЛЕНИЕ / СОСТАВ" title="Личный состав" description="Звания, статус доступа и баллы сотрудников." action={<button className="button button-primary" onClick={() => { setMemberError(''); setCreating(true); }}><Plus size={16} /> Добавить участника</button>} />
+    <div className="list-toolbar"><div className="search-box"><Search size={16} /><input placeholder="Поиск по имени или званию" value={search} onChange={(e) => setSearch(e.target.value)} /></div><span className="toolbar-count">{filtered.length} УЧАСТНИКОВ</span></div>
+    {!filtered.length ? <EmptyState title="Никого не найдено" text="Измените запрос или добавьте сотрудника." /> : <div className="table-panel"><div className="table-scroll"><table className="data-table"><thead><tr><th>СОТРУДНИК</th><th>ЗВАНИЕ</th><th>СТАТУС</th><th>БАЛЛЫ</th><th>ПОСЛЕДНИЙ ВХОД</th><th /></tr></thead><tbody>{filtered.map((m) => <tr key={m.id}><td><div className="table-person"><div className="avatar avatar-table">{initials(m.nickname)}</div><div><strong>{m.nickname}</strong><span>В составе с {dateText(m.createdAt)}</span></div></div></td><td>{memberTitle(m.role, m.rank)}</td><td><Badge status={m.status} /></td><td><span className="member-points">{m.role === 'employee' ? pointsByMember.get(m.id) ?? 0 : '—'}</span></td><td>{dateText(m.lastLogin, true)}</td><td><div className="member-actions">{m.role === 'employee' && <button className="icon-button points-deduct-action" aria-label={'Списать баллы: ' + m.nickname} title="Списать баллы" onClick={() => setPointTarget(m)}>−</button>}<button className="icon-button" aria-label={'Изменить ' + m.nickname} onClick={() => { setMemberError(''); setEditing(m); }}><Pencil size={15} /></button>{m.role === 'employee' && <button className="icon-button danger-icon" aria-label={'Исключить ' + m.nickname + ' из состава'} title="Исключить из состава" disabled={remove.isPending} onClick={() => { if (confirm('Исключить ' + m.nickname + ' из состава? Его доступ будет отключён, а история нормативов и поручений сохранится.')) remove.mutate({ id: m.id }, { onSuccess: () => { invalidate(qc, getListMembersQueryKey(), getGetDashboardQueryKey()); }, onError: (error) => alert(mutationErrorText(error, 'Не удалось исключить сотрудника из состава.')) }); }}><Trash2 size={15} /></button>}</div></td></tr>)}</tbody></table></div></div>}
+    <div className="list-bottom-note"><Shield size={14} />{leader ? 'Лидер может изменять звания, управлять статусом доступа и списывать баллы.' : 'Администратор может изменять звания, исключать сотрудников из состава и списывать баллы.'}</div>
     {(creating || editing) && <Modal title={editing ? 'Карточка сотрудника' : 'Новый участник'} subtitle={editing?.nickname ?? 'Создание доступа в систему Правительства области'} onClose={() => { setCreating(false); setEditing(null); }}><MemberForm initial={editing} leader={leader} pending={create.isPending || update.isPending} error={memberError} onCancel={() => { setCreating(false); setEditing(null); }} onSubmit={save} /></Modal>}
-    {credentials && <Modal title="Доступ создан" subtitle={`Учётная запись ${credentials.nickname}`} onClose={() => setCredentials(null)}><div className="credentials-panel"><strong>Временный пароль</strong><code>{credentials.password}</code><p>Показывается один раз. Передайте его сотруднику безопасно.</p><button className="button button-secondary" onClick={() => void navigator.clipboard?.writeText(credentials.password)}>Копировать</button></div></Modal>}
+    {credentials && <Modal title="Доступ создан" subtitle={'Учётная запись ' + credentials.nickname} onClose={() => setCredentials(null)}><div className="credentials-panel"><strong>Временный пароль</strong><code>{credentials.password}</code><p>Показывается один раз. Передайте его сотруднику безопасно.</p><button className="button button-secondary" onClick={() => void navigator.clipboard?.writeText(credentials.password)}>Копировать</button></div></Modal>}
+    <PointsDeductionModal member={pointTarget} currentPoints={pointTarget ? pointsByMember.get(pointTarget.id) ?? 0 : undefined} onClose={() => setPointTarget(null)} />
   </>;
+}
+
+function PointsDeductionModal({ member, currentPoints, onClose }: { member: Member | null; currentPoints?: number; onClose: () => void }) {
+  const qc = useQueryClient();
+  const deduct = useDeductPoints();
+  const [error, setError] = useState('');
+  useEffect(() => { setError(''); }, [member?.id]);
+  if (!member) return null;
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError('');
+    const form = new FormData(event.currentTarget);
+    const amount = Number(form.get('amount'));
+    const reason = String(form.get('reason') ?? '').trim();
+    deduct.mutate({ memberId: member.id, amount, reason }, {
+      onSuccess: () => { invalidate(qc, getPointsQueryKey(), getListMembersQueryKey(), getGetDashboardQueryKey()); onClose(); },
+      onError: (issue) => setError(mutationErrorText(issue, 'Не удалось списать баллы.')),
+    });
+  };
+  return <Modal title="Списание баллов" subtitle={'Сотрудник ' + member.nickname + (currentPoints === undefined ? '' : ' · сейчас ' + currentPoints + ' баллов')} onClose={onClose} closeDisabled={deduct.isPending}>
+    <form className="dialog-form" onSubmit={submit}>
+      <Field label="Количество баллов"><input name="amount" type="number" min={1} max={1000000} step={1} defaultValue={1} required /></Field>
+      <Field label="Причина списания"><textarea name="reason" minLength={3} maxLength={400} required placeholder="Укажите причину изменения баланса" /></Field>
+      {error && <div className="form-error" role="alert">{error}</div>}
+      <FormActions pending={deduct.isPending} onCancel={onClose} label="Списать баллы" />
+    </form>
+  </Modal>;
 }
 function MemberForm({ initial, leader, pending, error, onCancel, onSubmit }: { initial: Member | null; leader: boolean; pending: boolean; error: string; onCancel: () => void; onSubmit: (data: { nickname?: string; rank: string; status?: 'active' | 'blocked' }) => void }) {
   const [nickname, setNickname] = useState(initial?.nickname ?? '');

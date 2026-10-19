@@ -33,6 +33,8 @@ import { ObjectStorageService } from "../lib/objectStorage";
 import { verifyStoredImage } from "../lib/uploadValidation";
 import { issueStandardFailureDiscipline } from "../lib/standard-discipline";
 import { formatStandardFailureReason } from "../lib/standard-failure-rules";
+import { recordPointChange } from "../lib/points";
+import { standardPointsDelta, standardPointsSource } from "../lib/points-rules";
 import {
   getMoscowDailyCycle,
   MOSCOW_TIME_ZONE,
@@ -604,6 +606,13 @@ router.patch(
         current.submission.status !== "pending_review"
       ) return null;
 
+      const [evidence] = await tx
+        .select({ id: standardSubmissionFilesTable.id })
+        .from(standardSubmissionFilesTable)
+        .where(eq(standardSubmissionFilesTable.submissionId, current.submission.id))
+        .limit(1);
+      if (!evidence) return null;
+
       const [reviewed] = await tx
         .update(standardSubmissionsTable)
         .set({
@@ -626,6 +635,23 @@ router.patch(
         .update(standardAssignmentsTable)
         .set({ status: body.data.status })
         .where(eq(standardAssignmentsTable.id, current.assignment.id));
+      const outcome = body.data.status === "approved" ? "approved" : "rejected";
+      const pointDelta = standardPointsDelta(outcome);
+      const pointsRecorded = await recordPointChange(tx, {
+        memberId: current.assignment.assigneeId,
+        memberNickname: current.assigneeNickname,
+        delta: pointDelta,
+        reason: outcome === "approved"
+          ? "Норматив «" + current.standardTitle + "»: одобрен."
+          : formatStandardFailureReason(current.standardTitle, "отклонён. Причина руководителя: " + body.data.reason.trim()),
+        source: standardPointsSource(outcome),
+        assignmentId: current.assignment.id,
+        actorId: req.factionUser!.id,
+        actorNickname: req.factionUser!.nickname,
+      });
+      const pointsMessage = pointsRecorded
+        ? " Баллы за норматив: " + (pointDelta > 0 ? "+" : "") + pointDelta + "."
+        : "";
       const disciplineIssue = body.data.status === "rejected"
         ? await issueStandardFailureDiscipline(tx, {
             assignmentId: current.assignment.id,
@@ -656,7 +682,7 @@ router.patch(
         title: disciplineIssue?.kind === "issued"
           ? disciplineIssue.type === "warning" ? "Предупреждение за норматив" : "Выговор за норматив"
           : "Есть результат проверки норматива",
-        message: (body.data.status === "approved" ? "Норматив одобрен" : "Норматив отклонён") + ": " + body.data.reason.trim() + disciplineMessage,
+        message: (body.data.status === "approved" ? "Норматив одобрен" : "Норматив отклонён") + ": " + body.data.reason.trim() + pointsMessage + disciplineMessage,
         relatedType: "standard_assignment",
         relatedId: current.assignment.id,
       });
