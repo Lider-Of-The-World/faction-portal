@@ -54,6 +54,12 @@ const NAV_ITEMS = [
 ];
 const memberTitle = (role: string, rank: string) => role === 'leader' ? 'Лидер' : role === 'admin' ? 'Администратор' : rank;
 const REVIEW_RANKS = ['Вице-Губернатор', 'Депутат', 'Адвокат', 'Лицензер'] as const;
+const STANDARD_REVIEW_TABS = [
+  { status: 'pending_review', label: 'Ожидают проверки' },
+  { status: 'approved', label: 'Одобренные' },
+  { status: 'rejected', label: 'Отказанные' },
+] as const;
+type StandardReviewStatus = (typeof STANDARD_REVIEW_TABS)[number]['status'];
 
 function ReviewFilters({ nickname, rank, onNicknameChange, onRankChange, rankDisabled = false, rankHint }: {
   nickname: string;
@@ -361,12 +367,16 @@ function StandardsPage({ user }: { user: SessionUser }) {
   const [submitTarget, setSubmitTarget] = useState<StandardAssignment | null>(null);
   const [reviewNickname, setReviewNickname] = useState('');
   const [reviewRank, setReviewRank] = useState('');
+  const [reviewStatus, setReviewStatus] = useState<StandardReviewStatus>('pending_review');
   const [templateError, setTemplateError] = useState('');
   const [deleteNotice, setDeleteNotice] = useState('');
   const membersById = useMemo(() => new Map((members.data ?? []).map((member) => [member.id, member])), [members.data]);
   const visibleAssignments = useMemo(() => (assignments.data ?? []).filter((assignment) =>
     !manager || matchesReviewFilters(assignment.assigneeNickname, assignment.assigneeId, membersById, reviewNickname, reviewRank),
   ), [assignments.data, manager, membersById, reviewNickname, reviewRank]);
+  const reviewAssignments = manager ? visibleAssignments.filter((assignment) => assignment.status === reviewStatus) : visibleAssignments;
+  const otherAssignments = manager ? visibleAssignments.filter((assignment) => !STANDARD_REVIEW_TABS.some((tab) => tab.status === assignment.status)) : [];
+  const reviewCount = (status: StandardReviewStatus) => visibleAssignments.filter((assignment) => assignment.status === status).length;
   const saveTemplate = (payload: { title: string; description: string; requirements: string; category: string; target: number; unit: string; dailyRank: string | null }) => {
     const done = () => { invalidate(qc, getListStandardsQueryKey()); invalidate(qc, getListStandardAssignmentsQueryKey()); setTemplateOpen(false); setEditing(null); };
     setTemplateError('');
@@ -379,9 +389,15 @@ function StandardsPage({ user }: { user: SessionUser }) {
   return <><PageHeading eyebrow="СТАНДАРТЫ / ИСПОЛНЕНИЕ" title="Нормативы" description={manager ? 'Ежедневные нормативы по званиям и проверка результатов.' : 'Ваши назначенные нормативы и история подтверждений.'} action={manager && <button className="button button-primary" onClick={() => { setEditing(null); setTemplateError(''); setTemplateOpen(true); }}><Plus size={16} /> Новый норматив</button>} />
     {deleteNotice && <div className="form-success" role="status">{deleteNotice}</div>}
     {manager && <section className="template-zone"><div className="section-kicker"><span /> НОРМАТИВЫ <span className="section-rule" /></div>{!templates.data?.length ? <div className="empty-slim">Нормативов пока нет. Создайте норматив и укажите звание для ежедневного назначения.</div> : <div className="template-grid">{templates.data.map((s) => <article className="template-card" key={s.id}><div className="template-top"><span>{s.category}</span><div className="template-controls">{s.dailyRank && <span className="daily-badge">ЕЖЕДНЕВНО · {s.dailyRank}</span>}<button className="icon-button" title={`Изменить ${s.title}`} aria-label={`Изменить ${s.title}`} onClick={() => { setEditing(s); setTemplateError(''); setTemplateOpen(true); }}><Pencil size={14} /></button><button className="icon-button danger-icon" aria-label={`Удалить ${s.title}`} onClick={() => { if (confirm(`Удалить шаблон «${s.title}»? История уже назначенных нормативов останется сохранённой.`)) deleteStandard.mutate({ id: s.id }, { onSuccess: () => { invalidate(qc, getListStandardsQueryKey()); setDeleteNotice('Норматив удалён. История ранее назначенных заданий остаётся сохранённой.'); }, onError: (error) => alert(mutationErrorText(error, 'Не удалось удалить норматив.')) }); }}><Trash2 size={14} /></button></div></div><h3>{s.title}</h3><p>{s.description || s.requirements}</p><div className="template-target"><strong>{s.target}</strong><span>{s.unit}</span></div></article>)}</div>}</section>}
-    <div className="section-kicker assignments-kicker"><span /> {manager ? 'НАЗНАЧЕННАЯ РАБОТА' : 'МОИ НОРМАТИВЫ'} <span className="section-rule" /><span className="section-count">{visibleAssignments.length}</span></div>
-    {manager && <ReviewFilters nickname={reviewNickname} rank={reviewRank} onNicknameChange={setReviewNickname} onRankChange={setReviewRank} rankDisabled={members.isLoading || members.isError} rankHint={members.isLoading ? 'Загружаем список званий…' : members.isError ? 'Фильтр по званию временно недоступен.' : undefined} />}
-    {!visibleAssignments.length ? <EmptyState title={assignments.data?.length ? 'По фильтрам нормативов нет' : 'Назначенных нормативов нет'} text={assignments.data?.length ? 'Измените ник или звание, чтобы увидеть другие нормативы.' : manager ? 'Укажите звание в настройках норматива — после сохранения он сразу назначится активным сотрудникам этого звания.' : 'Назначенные нормативы появятся здесь.'} /> : <div className="assignments-list">{visibleAssignments.map((a) => <AssignmentCard key={a.id} assignment={a} manager={manager} onSubmit={() => setSubmitTarget(a)} onHistory={() => setHistoryId(historyId === a.id ? null : a.id)} onReview={() => setHistoryId(a.id)} />)}</div>}
+    <div className="section-kicker assignments-kicker"><span /> {manager ? 'НАЗНАЧЕННАЯ РАБОТА' : 'МОИ НОРМАТИВЫ'} <span className="section-rule" /><span className="section-count">{manager ? reviewCount(reviewStatus) : visibleAssignments.length}</span></div>
+    {manager ? <>
+      <div className="filter-tabs standard-review-tabs" aria-label="Статус нормативов">
+        {STANDARD_REVIEW_TABS.map((tab) => <button type="button" key={tab.status} aria-pressed={reviewStatus === tab.status} className={reviewStatus === tab.status ? 'selected' : ''} onClick={() => setReviewStatus(tab.status)}>{tab.label}<span className="standard-review-count">{reviewCount(tab.status)}</span></button>)}
+      </div>
+      <ReviewFilters nickname={reviewNickname} rank={reviewRank} onNicknameChange={setReviewNickname} onRankChange={setReviewRank} rankDisabled={members.isLoading || members.isError} rankHint={members.isLoading ? 'Загружаем список званий…' : members.isError ? 'Фильтр по званию временно недоступен.' : undefined} />
+      {!reviewAssignments.length ? <EmptyState title={assignments.data?.some((assignment) => assignment.status === reviewStatus) ? 'По фильтрам нормативов нет' : 'Нормативов в этой вкладке нет'} text={assignments.data?.some((assignment) => assignment.status === reviewStatus) ? 'Измените ник или звание, чтобы увидеть другие нормативы.' : 'Нормативы с таким статусом появятся здесь.'} /> : <div className="assignments-list">{reviewAssignments.map((a) => <AssignmentCard key={a.id} assignment={a} manager onSubmit={() => setSubmitTarget(a)} onHistory={() => setHistoryId(historyId === a.id ? null : a.id)} onReview={() => setHistoryId(a.id)} />)}</div>}
+      {!!otherAssignments.length && <section className="standards-other-assignments" aria-label="Другие назначения"><div className="section-kicker"><span /> ДРУГИЕ НАЗНАЧЕНИЯ <span className="section-rule" /><span className="section-count">{otherAssignments.length}</span></div><div className="assignments-list">{otherAssignments.map((a) => <AssignmentCard key={a.id} assignment={a} manager onSubmit={() => setSubmitTarget(a)} onHistory={() => setHistoryId(historyId === a.id ? null : a.id)} onReview={() => setHistoryId(a.id)} />)}</div></section>}
+    </> : !visibleAssignments.length ? <EmptyState title="Назначенных нормативов нет" text="Назначенные нормативы появятся здесь." /> : <div className="assignments-list">{visibleAssignments.map((a) => <AssignmentCard key={a.id} assignment={a} manager={manager} onSubmit={() => setSubmitTarget(a)} onHistory={() => setHistoryId(historyId === a.id ? null : a.id)} onReview={() => setHistoryId(a.id)} />)}</div>}
     {templateOpen && <Modal title={editing ? 'Изменить норматив' : 'Новый норматив'} subtitle="Ежедневное назначение можно связать с одним конкретным званием." onClose={() => { setTemplateOpen(false); setEditing(null); }}><StandardTemplateForm initial={editing} pending={createStandard.isPending || updateStandard.isPending} error={templateError} onCancel={() => { setTemplateOpen(false); setEditing(null); }} onSubmit={saveTemplate} /></Modal>}
     {submitTarget && <SubmitModal title="Отправить результат" detail={submitTarget.title} onClose={() => setSubmitTarget(null)} pendingHook="standard" id={submitTarget.id} onSubmitted={() => { invalidate(qc, getListStandardAssignmentsQueryKey()); setSubmitTarget(null); }} />}
     {historyId && <Modal title="Отправки и проверка" subtitle="История отправок, комментарии и решения руководства." onClose={() => setHistoryId(null)} className="history-modal"><StandardAssignmentHistory id={historyId} manager={manager} onClose={() => setHistoryId(null)} onReviewed={() => invalidate(qc, getListStandardAssignmentsQueryKey())} /></Modal>}
