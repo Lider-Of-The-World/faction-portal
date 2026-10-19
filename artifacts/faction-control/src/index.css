@@ -642,6 +642,11 @@ a { color: inherit; text-decoration: none; }
 .review-filters input:focus, .review-filters select:focus { border-color: #ba774f; box-shadow: 0 0 0 3px rgba(186,119,79,.11); }
 .review-filters select:disabled { opacity: .55; cursor: not-allowed; }
 .review-filter-hint { align-self: center; color: #85888f; font-size: 9px; }
+.standard-review-tabs { margin-bottom: 12px; }
+.standard-review-tabs button { display: inline-flex; align-items: center; gap: 7px; }
+.standard-review-tabs .standard-review-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px; color: #8b8e94; background: rgba(255,255,255,.05); border-radius: 3px; font-size: 9px; line-height: 1; }
+.standard-review-tabs button.selected .standard-review-count { color: #edc3bd; background: #492c2a; }
+.standards-other-assignments { margin-top: 22px; padding-top: 18px; border-top: 1px solid #303137; }
 .discipline-roster { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 9px; margin-bottom: 16px; }
 .discipline-person-summary { display: flex; align-items: flex-start; flex-direction: column; gap: 6px; padding: 13px 14px; color: #a6a5a2; background: #191a1e; border: 1px solid #2c2e33; border-radius: 5px; text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
 .discipline-person-summary:hover { background: #202125; border-color: #69413e; }
