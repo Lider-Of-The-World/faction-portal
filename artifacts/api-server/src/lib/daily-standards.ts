@@ -38,7 +38,7 @@ async function assignDailyStandards(
   tx: DailyStandardTransaction,
   standards: DailyStandard[],
   now: Date,
-  trigger: "saved" | "midnight",
+  trigger: "saved" | "rollover",
 ) {
   const cycle = getMoscowDailyCycle(now);
   const activeStandards = standards.filter(
@@ -141,7 +141,7 @@ async function assignDailyStandards(
         recipientId: member.id,
         kind: "standard_assigned",
         title: "Назначен дневной норматив",
-        message: `${activeStandard.title} — срок до 00:00 МСК ${deadline}.`,
+        message: `${activeStandard.title} — срок до 23:59 МСК ${deadline}.`,
         relatedType: "standard_assignment",
         relatedId: created.id,
       });
@@ -220,6 +220,7 @@ export async function runDailyStandardCycle(now = new Date()) {
         assigneeId: standardAssignmentsTable.assigneeId,
         assignedById: standardAssignmentsTable.assignedById,
         status: standardAssignmentsTable.status,
+        dueAt: standardAssignmentsTable.dueAt,
         title: standardsTable.title,
         assigneeNickname: membersTable.nickname,
         issuerNickname: assignmentIssuer.nickname,
@@ -259,7 +260,7 @@ export async function runDailyStandardCycle(now = new Date()) {
           .from(standardSubmissionsTable)
           .where(eq(standardSubmissionsTable.assignmentId, assignment.id));
         version = Number(versionCount?.value ?? 0) + 1;
-        const message = `Период норматива завершён автоматически ${moscowDateLabel(now)} в 00:00 МСК. Сдача не отправлена; скриншотов нет.`;
+        const message = `Период норматива завершён автоматически ${moscowDateLabel(assignment.dueAt)} в 23:59 МСК. Сдача не отправлена; скриншотов нет.`;
         await tx.insert(standardSubmissionsTable).values({
           assignmentId: assignment.id,
           version,
@@ -317,7 +318,7 @@ export async function runDailyStandardCycle(now = new Date()) {
       tx,
       activeStandards,
       now,
-      "midnight",
+      "rollover",
     );
 
     return {

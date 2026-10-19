@@ -5,24 +5,29 @@ import {
   isDailyStandardPosition,
 } from "./daily-standard-cycle.ts";
 
-test("Moscow daily cycle changes at 00:00 Europe/Moscow", () => {
-  const beforeMidnight = getMoscowDailyCycle(
-    new Date("2026-10-17T20:59:59.000Z"),
+test("Moscow daily cycle changes at 23:59 Europe/Moscow", () => {
+  const beforeRollover = getMoscowDailyCycle(
+    new Date("2026-10-17T20:58:59.000Z"),
   );
-  assert.equal(beforeMidnight.dayKey, "2026-10-17");
-  assert.equal(beforeMidnight.startsAt.toISOString(), "2026-10-16T21:00:00.000Z");
-  assert.equal(beforeMidnight.endsAt.toISOString(), "2026-10-17T21:00:00.000Z");
+  assert.equal(beforeRollover.dayKey, "2026-10-17");
+  assert.equal(beforeRollover.startsAt.toISOString(), "2026-10-16T20:59:00.000Z");
+  assert.equal(beforeRollover.endsAt.toISOString(), "2026-10-17T20:59:00.000Z");
 
-  const atMidnight = getMoscowDailyCycle(new Date("2026-10-17T21:00:00.000Z"));
-  assert.equal(atMidnight.dayKey, "2026-10-18");
-  assert.equal(atMidnight.startsAt.toISOString(), "2026-10-17T21:00:00.000Z");
+  const atRollover = getMoscowDailyCycle(new Date("2026-10-17T20:59:00.000Z"));
+  assert.equal(atRollover.dayKey, "2026-10-18");
+  assert.equal(atRollover.startsAt.toISOString(), "2026-10-17T20:59:00.000Z");
+  assert.equal(atRollover.endsAt.toISOString(), "2026-10-18T20:59:00.000Z");
+
+  const afterMidnight = getMoscowDailyCycle(new Date("2026-10-17T21:00:00.000Z"));
+  assert.equal(afterMidnight.dayKey, "2026-10-18");
+  assert.equal(afterMidnight.startsAt.toISOString(), "2026-10-17T20:59:00.000Z");
 });
 
-test("a standard saved during the Moscow day is due at the next midnight", () => {
+test("a standard saved during the Moscow day is due at 23:59", () => {
   const cycle = getMoscowDailyCycle(new Date("2026-10-17T12:34:00.000Z"));
 
   assert.equal(cycle.dayKey, "2026-10-17");
-  assert.equal(cycle.endsAt.toISOString(), "2026-10-17T21:00:00.000Z");
+  assert.equal(cycle.endsAt.toISOString(), "2026-10-17T20:59:00.000Z");
 });
 
 test("daily assignments recognize each of the six supported titles", () => {
