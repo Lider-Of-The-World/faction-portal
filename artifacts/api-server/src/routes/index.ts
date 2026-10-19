@@ -12,6 +12,7 @@ import standardAssignmentsRouter from "./standard-assignments";
 import notificationsRouter from "./notifications";
 import auditLogsRouter from "./audit-logs";
 import inactivityRequestsRouter from "./inactivity-requests";
+import pointsRouter from "./points";
 import cronRouter from "./cron";
 
 const router: IRouter = Router();
@@ -30,5 +31,6 @@ router.use(storageRouter);
 router.use(notificationsRouter);
 router.use(auditLogsRouter);
 router.use(inactivityRequestsRouter);
+router.use(pointsRouter);
 
 export default router;

@@ -461,7 +461,7 @@ a { color: inherit; text-decoration: none; }
 .dashboard-discipline-link:hover { color: #f09a91; }
 .dashboard-discipline-message { padding: 12px 10px; color: #92918f; font-size: 10px; }
 .dashboard-discipline-table { border-top: 1px solid #343133; }
-.dashboard-discipline-columns, .dashboard-discipline-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(108px, .45fr) minmax(85px, .35fr); align-items: center; gap: 12px; }
+.dashboard-discipline-columns, .dashboard-discipline-row { display: grid; grid-template-columns: minmax(0, 1fr) 74px 74px 70px; align-items: center; gap: 9px; }
 .dashboard-discipline-columns { padding: 10px 10px 8px; color: #85858a; font: 8px var(--app-font-mono); letter-spacing: .08em; }
 .dashboard-discipline-columns span:not(:first-child) { text-align: center; }
 .dashboard-discipline-row { min-height: 49px; padding: 8px 10px; border-top: 1px solid #2b2d31; }
@@ -473,6 +473,12 @@ a { color: inherit; text-decoration: none; }
 .dashboard-discipline-count small { color: #97918a; font: 9px var(--app-font-sans); }
 .dashboard-discipline-warning { color: #e5c487; background: #2a251b; border-color: #4a412c; }
 .dashboard-discipline-reprimand { color: #e39a90; background: #2b1e1f; border-color: #49312f; }
+.dashboard-point-cell { display: flex; align-items: center; justify-content: center; gap: 5px; }
+.dashboard-point-value { color: #e5c487; font: 14px var(--app-font-serif); }
+.dashboard-point-deduct { display: inline-grid; place-items: center; width: 23px; height: 23px; padding: 0; color: #e39a90; background: #2b1e1f; border: 1px solid #49312f; border-radius: 4px; font-size: 15px; line-height: 1; }
+.dashboard-point-deduct:hover { color: #fff; background: #5a302d; }
+.member-points { color: #e5c487; font: 13px var(--app-font-serif); }
+.points-deduct-action { color: #e39a90; font-size: 17px; }
 .stats-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 13px; margin-bottom: 18px; }
 .stat-card { min-height: 130px; padding: 16px 18px 14px; background: #191a1e; border: 1px solid #2c2e33; border-radius: 5px; }
 .stat-card.stat-accent { background: linear-gradient(130deg, #211b1c, #191a1e 80%); border-color: #46302f; }
@@ -1238,9 +1244,12 @@ button, a, input, select, textarea { transition-duration: .18s; }
   .dashboard-discipline-card { padding: 15px 13px; }
   .dashboard-discipline-header { gap: 8px; }
   .dashboard-discipline-header h2 { font-size: 24px; }
-  .dashboard-discipline-columns, .dashboard-discipline-row { grid-template-columns: minmax(0, 1fr) minmax(88px, .48fr) minmax(68px, .38fr); gap: 8px; }
+  .dashboard-discipline-columns, .dashboard-discipline-row { grid-template-columns: minmax(0, 1fr) 60px 68px 70px; gap: 6px; }
   .dashboard-discipline-columns { font-size: 7px; letter-spacing: .04em; }
   .dashboard-discipline-count { min-width: 38px; padding: 5px 6px; font-size: 13px; }
+  .dashboard-point-cell { gap: 3px; }
+  .dashboard-point-value { font-size: 12px; }
+  .dashboard-point-deduct { width: 21px; height: 21px; }
   .stats-grid { grid-template-columns: 1fr; }
   .dashboard-columns { grid-template-columns: 1fr; }
   .app-footer { margin: 0 17px; gap: 12px; font-size: 7px; }

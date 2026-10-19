@@ -32,6 +32,7 @@ export const membersTable = pgTable(
   disciplineMaxReachedAt: timestamp("discipline_max_reached_at", {
     withTimezone: true,
   }),
+    points: integer("points").notNull().default(0),
   },
   (table) => [
     uniqueIndex("faction_members_nickname_normalized_uq").on(
