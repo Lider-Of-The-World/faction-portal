@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { Router, type IRouter } from "express";
 import {
@@ -127,7 +127,10 @@ router.get(
       )
       .where(
         viewer.role === "employee"
-          ? eq(standardAssignmentsTable.assigneeId, viewer.id)
+          ? and(
+              eq(standardAssignmentsTable.assigneeId, viewer.id),
+              ne(standardAssignmentsTable.status, "cancelled"),
+            )
           : undefined,
       )
       .orderBy(desc(standardAssignmentsTable.assignedAt));
@@ -583,7 +586,11 @@ router.patch(
         )
         .where(eq(standardSubmissionsTable.id, params.data.id))
         .limit(1);
-      if (!current || current.submission.status !== "pending_review") return null;
+      if (
+        !current ||
+        current.assignment.status === "cancelled" ||
+        current.submission.status !== "pending_review"
+      ) return null;
 
       const [reviewed] = await tx
         .update(standardSubmissionsTable)
