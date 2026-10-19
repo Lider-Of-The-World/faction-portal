@@ -64,6 +64,13 @@
       "when": 1792398369903,
       "tag": "0008_employee_points",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792400582387,
+      "tag": "0009_backfill_approved_standard_points",
+      "breakpoints": true
     }
   ]
 }

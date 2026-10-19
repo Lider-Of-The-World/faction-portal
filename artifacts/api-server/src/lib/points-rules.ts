@@ -17,6 +17,13 @@ export function standardPointsRequestKey(assignmentId: string, source: StandardP
   return "standard:" + assignmentId + ":" + source;
 }
 
+export function pointsAwardDelta(amount: number): number {
+  if (!Number.isSafeInteger(amount) || amount < 1) {
+    throw new Error("Количество начисляемых баллов должно быть положительным целым числом.");
+  }
+  return amount;
+}
+
 export function pointsDeductionDelta(amount: number): number {
   if (!Number.isSafeInteger(amount) || amount < 1) {
     throw new Error("Количество списываемых баллов должно быть положительным целым числом.");
