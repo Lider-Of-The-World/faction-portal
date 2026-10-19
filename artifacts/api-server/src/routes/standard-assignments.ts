@@ -31,6 +31,8 @@ import { writeAudit } from "../lib/audit";
 import { isDateWithinInactivityPeriod } from "../lib/inactivity-period";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { verifyStoredImage } from "../lib/uploadValidation";
+import { issueStandardFailureDiscipline } from "../lib/standard-discipline";
+import { formatStandardFailureReason } from "../lib/standard-failure-rules";
 import {
   getMoscowDailyCycle,
   MOSCOW_TIME_ZONE,
@@ -574,6 +576,8 @@ router.patch(
           submission: standardSubmissionsTable,
           assignment: standardAssignmentsTable,
           assigneeNickname: membersTable.nickname,
+          assignedByNickname: assignmentIssuer.nickname,
+          standardTitle: standardsTable.title,
         })
         .from(standardSubmissionsTable)
         .innerJoin(
@@ -583,6 +587,14 @@ router.patch(
         .innerJoin(
           membersTable,
           eq(standardAssignmentsTable.assigneeId, membersTable.id),
+        )
+        .innerJoin(
+          assignmentIssuer,
+          eq(standardAssignmentsTable.assignedById, assignmentIssuer.id),
+        )
+        .innerJoin(
+          standardsTable,
+          eq(standardAssignmentsTable.standardId, standardsTable.id),
         )
         .where(eq(standardSubmissionsTable.id, params.data.id))
         .limit(1);
@@ -614,11 +626,37 @@ router.patch(
         .update(standardAssignmentsTable)
         .set({ status: body.data.status })
         .where(eq(standardAssignmentsTable.id, current.assignment.id));
+      const disciplineIssue = body.data.status === "rejected"
+        ? await issueStandardFailureDiscipline(tx, {
+            assignmentId: current.assignment.id,
+            memberId: current.assignment.assigneeId,
+            assignedById: current.assignment.assignedById,
+            assignedByNickname: current.assignedByNickname,
+            standardTitle: current.standardTitle,
+            reason: formatStandardFailureReason(
+              current.standardTitle,
+              "отклонён. Причина руководителя: " + body.data.reason.trim(),
+            ),
+          })
+        : null;
+      const disciplineMessage = disciplineIssue?.kind === "issued"
+        ? disciplineIssue.type === "warning"
+          ? " Автоматически выдано предупреждение за норматив."
+          : " Автоматически выдан выговор по действующим правилам дисциплины."
+        : disciplineIssue?.kind === "limit"
+          ? " Автоматическое взыскание не назначено из-за действующего дисциплинарного ограничения."
+          : disciplineIssue?.kind === "already-issued"
+            ? " Предупреждение за этот норматив уже было зарегистрировано ранее."
+            : disciplineIssue?.kind === "ineligible"
+              ? " Автоматическое взыскание не назначено: сотрудник неактивен."
+              : "";
       await tx.insert(notificationsTable).values({
         recipientId: current.assignment.assigneeId,
         kind: "standard_reviewed",
-        title: "Есть результат проверки норматива",
-        message: `${body.data.status === "approved" ? "Норматив одобрен" : "Норматив отклонён"}: ${body.data.reason.trim()}`,
+        title: disciplineIssue?.kind === "issued"
+          ? disciplineIssue.type === "warning" ? "Предупреждение за норматив" : "Выговор за норматив"
+          : "Есть результат проверки норматива",
+        message: (body.data.status === "approved" ? "Норматив одобрен" : "Норматив отклонён") + ": " + body.data.reason.trim() + disciplineMessage,
         relatedType: "standard_assignment",
         relatedId: current.assignment.id,
       });
