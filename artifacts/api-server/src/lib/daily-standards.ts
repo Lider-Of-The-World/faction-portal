@@ -46,7 +46,8 @@ async function assignDailyStandards(
   tx: DailyStandardTransaction,
   standards: DailyStandard[],
   now: Date,
-  trigger: "saved" | "rollover",
+  trigger: "saved" | "rollover" | "inactivity_cancelled",
+  options: { memberId?: string; inactivityRequestId?: string } = {},
 ) {
   const cycle = getMoscowDailyCycle(now);
   const activeStandards = standards.filter(
@@ -63,7 +64,12 @@ async function assignDailyStandards(
       rank: membersTable.rank,
     })
     .from(membersTable)
-    .where(eq(membersTable.status, "active"));
+    .where(
+      and(
+        eq(membersTable.status, "active"),
+        options.memberId ? eq(membersTable.id, options.memberId) : undefined,
+      ),
+    );
   const membersWithTitles = activeMembers.map((member) => ({
     ...member,
     title: titleForMember(member.role, member.rank),
@@ -111,7 +117,10 @@ async function assignDailyStandards(
 
     for (const member of eligibleMembers) {
       const [existingAssignment] = await tx
-        .select({ id: standardAssignmentsTable.id })
+        .select({
+          id: standardAssignmentsTable.id,
+          status: standardAssignmentsTable.status,
+        })
         .from(standardAssignmentsTable)
         .where(
           and(
@@ -123,7 +132,86 @@ async function assignDailyStandards(
           ),
         )
         .limit(1);
-      if (existingAssignment) continue;
+      if (existingAssignment) {
+        if (
+          trigger === "inactivity_cancelled" &&
+          existingAssignment.status === "cancelled"
+        ) {
+          const [cancelledAssignment] = await tx
+            .select({ id: standardAssignmentsTable.id })
+            .from(standardAssignmentsTable)
+            .where(eq(standardAssignmentsTable.id, existingAssignment.id))
+            .for("update");
+
+          if (cancelledAssignment) {
+            const [latestSubmission] = await tx
+              .select({ status: standardSubmissionsTable.status })
+              .from(standardSubmissionsTable)
+              .where(
+                eq(standardSubmissionsTable.assignmentId, cancelledAssignment.id),
+              )
+              .orderBy(desc(standardSubmissionsTable.version))
+              .limit(1);
+            const restoredStatus =
+              latestSubmission?.status === "pending_review" ||
+              latestSubmission?.status === "revision_required"
+                ? latestSubmission.status
+                : "not_submitted";
+            const [restored] = await tx
+              .update(standardAssignmentsTable)
+              .set({ status: restoredStatus })
+              .where(
+                and(
+                  eq(standardAssignmentsTable.id, cancelledAssignment.id),
+                  eq(standardAssignmentsTable.status, "cancelled"),
+                  isNull(standardAssignmentsTable.cycleClosedAt),
+                ),
+              )
+              .returning({ id: standardAssignmentsTable.id });
+
+            if (restored) {
+              assignedCount += 1;
+              const deadline = new Intl.DateTimeFormat("ru-RU", {
+                timeZone: MOSCOW_TIME_ZONE,
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              }).format(cycle.endsAt);
+              await tx.insert(notificationsTable).values({
+                recipientId: member.id,
+                kind: "standard_assigned",
+                title: "Дневной норматив восстановлен",
+                message: `${activeStandard.title} снова доступен после аннулирования неактива. Срок до 23:59 МСК ${deadline}.`,
+                relatedType: "standard_assignment",
+                relatedId: restored.id,
+              });
+              await writeAudit(tx, {
+                actorId: activeStandard.createdById,
+                actorNickname: issuer?.nickname ?? "Лидер",
+                category: "standards",
+                action: "standard.daily_restored_after_inactivity_cancellation",
+                entityType: "standard_assignment",
+                entityId: restored.id,
+                entityLabel:
+                  "Восстановлен дневной норматив после аннулирования неактива: " +
+                  activeStandard.title + " → " + member.nickname,
+                targetMemberId: member.id,
+                targetMemberNickname: member.nickname,
+                details: {
+                  automatic: true,
+                  trigger,
+                  inactivityRequestId: options.inactivityRequestId,
+                  day: cycle.dayKey,
+                  restoredStatus,
+                  dueAt: cycle.endsAt,
+                  standardId: activeStandard.id,
+                },
+              });
+            }
+          }
+        }
+        continue;
+      }
 
       const [created] = await tx
         .insert(standardAssignmentsTable)
@@ -148,8 +236,14 @@ async function assignDailyStandards(
       await tx.insert(notificationsTable).values({
         recipientId: member.id,
         kind: "standard_assigned",
-        title: "Назначен дневной норматив",
-        message: `${activeStandard.title} — срок до 23:59 МСК ${deadline}.`,
+        title:
+          trigger === "inactivity_cancelled"
+            ? "Назначен норматив после аннулирования неактива"
+            : "Назначен дневной норматив",
+        message:
+          trigger === "inactivity_cancelled"
+            ? `${activeStandard.title} назначен после аннулирования неактива. Срок до 23:59 МСК ${deadline}.`
+            : `${activeStandard.title} — срок до 23:59 МСК ${deadline}.`,
         relatedType: "standard_assignment",
         relatedId: created.id,
       });
@@ -157,7 +251,10 @@ async function assignDailyStandards(
         actorId: activeStandard.createdById,
         actorNickname: issuer?.nickname ?? "Лидер",
         category: "standards",
-        action: "standard.daily_assigned",
+        action:
+          trigger === "inactivity_cancelled"
+            ? "standard.daily_assigned_after_inactivity_cancellation"
+            : "standard.daily_assigned",
         entityType: "standard_assignment",
         entityId: created.id,
         entityLabel: `Ежедневный норматив: ${activeStandard.title} → ${member.nickname}`,
@@ -166,6 +263,7 @@ async function assignDailyStandards(
         details: {
           automatic: true,
           trigger,
+          inactivityRequestId: options.inactivityRequestId,
           day: cycle.dayKey,
           rank: member.title,
           dueAt: cycle.endsAt,
@@ -176,6 +274,33 @@ async function assignDailyStandards(
   }
 
   return assignedCount;
+}
+
+export async function restoreDailyStandardsAfterInactivityCancellation(
+  tx: DailyStandardTransaction,
+  memberId: string,
+  inactivityRequestId: string,
+  now = new Date(),
+) {
+  const activeStandards = await tx
+    .select()
+    .from(standardsTable)
+    .where(
+      and(
+        eq(standardsTable.dailyEnabled, true),
+        isNull(standardsTable.archivedAt),
+      ),
+    )
+    .orderBy(desc(standardsTable.createdAt))
+    .for("update");
+
+  return assignDailyStandards(
+    tx,
+    activeStandards,
+    now,
+    "inactivity_cancelled",
+    { memberId, inactivityRequestId },
+  );
 }
 
 export async function assignDailyStandardImmediately(

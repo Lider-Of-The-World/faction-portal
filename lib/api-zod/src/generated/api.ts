@@ -1089,6 +1089,83 @@ export const RevokeDisciplineRecordResponse = zod.object({
 
 
 /**
+ * @summary Список заявок на неактив с учётом роли пользователя
+ */
+export const ListInactivityRequestsResponseItem = zod.object({
+  "id": zod.string().uuid(),
+  "memberId": zod.string().uuid(),
+  "memberNickname": zod.string(),
+  "memberRank": zod.string(),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "reason": zod.string(),
+  "status": zod.enum(['pending_review', 'approved', 'rejected', 'cancelled']),
+  "submittedAt": zod.coerce.date(),
+  "reviewedAt": zod.coerce.date().nullable(),
+  "reviewerId": zod.string().uuid().nullable(),
+  "reviewerNickname": zod.string().nullable()
+})
+export const ListInactivityRequestsResponse = zod.array(ListInactivityRequestsResponseItem)
+
+
+/**
+ * @summary Подать заявку на неактив от имени сотрудника
+ */
+export const createInactivityRequestBodyReasonMin = 3;
+export const createInactivityRequestBodyReasonMax = 2000;
+
+
+
+export const CreateInactivityRequestBody = zod.object({
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "reason": zod.string().min(createInactivityRequestBodyReasonMin).max(createInactivityRequestBodyReasonMax)
+})
+
+export const CreateInactivityRequestResponse = zod.object({
+  "id": zod.string().uuid(),
+  "memberId": zod.string().uuid(),
+  "memberNickname": zod.string(),
+  "memberRank": zod.string(),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "reason": zod.string(),
+  "status": zod.enum(['pending_review', 'approved', 'rejected', 'cancelled']),
+  "submittedAt": zod.coerce.date(),
+  "reviewedAt": zod.coerce.date().nullable(),
+  "reviewerId": zod.string().uuid().nullable(),
+  "reviewerNickname": zod.string().nullable()
+})
+
+
+/**
+ * @summary Одобрить, отклонить или аннулировать одобренную заявку (только лидер или администратор)
+ */
+export const ReviewInactivityRequestParams = zod.object({
+  "id": zod.coerce.string().uuid()
+})
+
+export const ReviewInactivityRequestBody = zod.object({
+  "status": zod.enum(['approved', 'rejected', 'cancelled'])
+})
+
+export const ReviewInactivityRequestResponse = zod.object({
+  "id": zod.string().uuid(),
+  "memberId": zod.string().uuid(),
+  "memberNickname": zod.string(),
+  "memberRank": zod.string(),
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "reason": zod.string(),
+  "status": zod.enum(['pending_review', 'approved', 'rejected', 'cancelled']),
+  "submittedAt": zod.coerce.date(),
+  "reviewedAt": zod.coerce.date().nullable(),
+  "reviewerId": zod.string().uuid().nullable(),
+  "reviewerNickname": zod.string().nullable()
+})
+
+
+/**
  * @summary Прочитать неизменяемый журнал действий руководства
  */
 export const listAuditLogsQueryActionMax = 100;

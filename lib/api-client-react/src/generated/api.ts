@@ -34,6 +34,9 @@ import type {
   EventSubmissionReviewInput,
   EventUpdate,
   HealthStatus,
+  InactivityRequest,
+  InactivityRequestInput,
+  InactivityRequestReviewInput,
   ListAuditLogsParams,
   ListDisciplineParams,
   LoginInput,
@@ -3239,6 +3242,260 @@ export const useRevokeDisciplineRecord = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getRevokeDisciplineRecordMutationOptions(options));
+    }
+
+export const getListInactivityRequestsUrl = () => {
+
+
+
+
+  return `/api/inactivity-requests`
+}
+
+/**
+ * @summary Список заявок на неактив с учётом роли пользователя
+ */
+export const listInactivityRequests = async ( options?: Parameters<typeof customFetch>[1]): Promise<InactivityRequest[]> => {
+
+  return customFetch<InactivityRequest[]>(getListInactivityRequestsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListInactivityRequestsQueryKey = () => {
+    return [
+    `/api/inactivity-requests`
+    ] as const;
+    }
+
+
+export const getListInactivityRequestsQueryOptions = <TData = Awaited<ReturnType<typeof listInactivityRequests>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInactivityRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListInactivityRequestsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listInactivityRequests>>> = ({ signal }) => listInactivityRequests({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listInactivityRequests>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListInactivityRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof listInactivityRequests>>>
+export type ListInactivityRequestsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Список заявок на неактив с учётом роли пользователя
+ */
+
+export function useListInactivityRequests<TData = Awaited<ReturnType<typeof listInactivityRequests>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInactivityRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListInactivityRequestsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateInactivityRequestUrl = () => {
+
+
+
+
+  return `/api/inactivity-requests`
+}
+
+/**
+ * @summary Подать заявку на неактив от имени сотрудника
+ */
+export const createInactivityRequest = async (inactivityRequestInput: InactivityRequestInput, options?: Parameters<typeof customFetch>[1]): Promise<InactivityRequest> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<InactivityRequest>(getCreateInactivityRequestUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(inactivityRequestInput)
+  }
+);}
+
+
+
+
+
+export const getCreateInactivityRequestMutationKey = () => ['createInactivityRequest'] as const;
+
+export const getCreateInactivityRequestMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createInactivityRequest>>, TError,CreateInactivityRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createInactivityRequest>>, TError,CreateInactivityRequestMutationVariables, TContext> => {
+
+const mutationKey = getCreateInactivityRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createInactivityRequest>>, CreateInactivityRequestMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createInactivityRequest(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateInactivityRequestMutationResult = NonNullable<Awaited<ReturnType<typeof createInactivityRequest>>>
+    export type CreateInactivityRequestMutationBody = BodyType<InactivityRequestInput>
+    export type CreateInactivityRequestMutationError = ErrorType<unknown>
+    export type CreateInactivityRequestMutationVariables = {data: BodyType<InactivityRequestInput>}
+
+    /**
+ * @summary Подать заявку на неактив от имени сотрудника
+ */
+export const useCreateInactivityRequest = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createInactivityRequest>>, TError,CreateInactivityRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createInactivityRequest>>,
+        TError,
+        CreateInactivityRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateInactivityRequestMutationOptions(options));
+    }
+
+export const getReviewInactivityRequestUrl = (id: string,) => {
+
+
+
+
+  return `/api/inactivity-requests/${id}/review`
+}
+
+/**
+ * @summary Одобрить, отклонить или аннулировать одобренную заявку (только лидер или администратор)
+ */
+export const reviewInactivityRequest = async (id: string,
+    inactivityRequestReviewInput: InactivityRequestReviewInput, options?: Parameters<typeof customFetch>[1]): Promise<InactivityRequest> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<InactivityRequest>(getReviewInactivityRequestUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(inactivityRequestReviewInput)
+  }
+);}
+
+
+
+
+
+export const getReviewInactivityRequestMutationKey = () => ['reviewInactivityRequest'] as const;
+
+export const getReviewInactivityRequestMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewInactivityRequest>>, TError,ReviewInactivityRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reviewInactivityRequest>>, TError,ReviewInactivityRequestMutationVariables, TContext> => {
+
+const mutationKey = getReviewInactivityRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reviewInactivityRequest>>, ReviewInactivityRequestMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reviewInactivityRequest(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReviewInactivityRequestMutationResult = NonNullable<Awaited<ReturnType<typeof reviewInactivityRequest>>>
+    export type ReviewInactivityRequestMutationBody = BodyType<InactivityRequestReviewInput>
+    export type ReviewInactivityRequestMutationError = ErrorType<unknown>
+    export type ReviewInactivityRequestMutationVariables = {id: string;data: BodyType<InactivityRequestReviewInput>}
+
+    /**
+ * @summary Одобрить, отклонить или аннулировать одобренную заявку (только лидер или администратор)
+ */
+export const useReviewInactivityRequest = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewInactivityRequest>>, TError,ReviewInactivityRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reviewInactivityRequest>>,
+        TError,
+        ReviewInactivityRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReviewInactivityRequestMutationOptions(options));
     }
 
 export const getListAuditLogsUrl = (params?: ListAuditLogsParams,) => {
