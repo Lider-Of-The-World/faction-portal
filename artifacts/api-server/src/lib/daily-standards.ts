@@ -20,7 +20,10 @@ import {
 } from "./daily-standard-cycle";
 import { titleForMember } from "./member-ranks";
 import { issueStandardFailureDiscipline } from "./standard-discipline";
-import { formatStandardFailureReason } from "./standard-failure-rules";
+import {
+  createAutomaticStandardRejection,
+  formatStandardFailureReason,
+} from "./standard-failure-rules";
 import { recordPointChange } from "./points";
 import { standardPointsDelta, standardPointsSource } from "./points-rules";
 
@@ -318,6 +321,7 @@ export async function runDailyStandardCycle(now = new Date()) {
     for (const assignment of expiredAssignments) {
       const missingSubmission = assignment.status === "not_submitted";
       let version: number | null = null;
+      let automaticFailureStatus: "rejected" | null = null;
       if (missingSubmission) {
         const [versionCount] = await tx
           .select({ value: count() })
@@ -325,17 +329,21 @@ export async function runDailyStandardCycle(now = new Date()) {
           .where(eq(standardSubmissionsTable.assignmentId, assignment.id));
         version = Number(versionCount?.value ?? 0) + 1;
         const message = `Период норматива завершён автоматически ${moscowDateLabel(assignment.dueAt)} в 23:59 МСК. Сдача не отправлена; скриншотов нет.`;
-        await tx.insert(standardSubmissionsTable).values({
-          assignmentId: assignment.id,
-          version,
-          comment: message,
-          status: "pending_review",
-          submittedAt: now,
-        });
         const failureReason = formatStandardFailureReason(
           assignment.title,
           "не сдан в срок (" + moscowDateLabel(assignment.dueAt) + " до 23:59 МСК).",
         );
+        const automaticRejection = createAutomaticStandardRejection({
+          version,
+          comment: message,
+          reason: failureReason,
+          submittedAt: now,
+        });
+        automaticFailureStatus = automaticRejection.status;
+        await tx.insert(standardSubmissionsTable).values({
+          assignmentId: assignment.id,
+          ...automaticRejection,
+        });
         const missingPointsDelta = standardPointsDelta("not_submitted");
         const missingPointsRecorded = await recordPointChange(tx, {
           memberId: assignment.assigneeId,
@@ -376,7 +384,7 @@ export async function runDailyStandardCycle(now = new Date()) {
       await tx
         .update(standardAssignmentsTable)
         .set({
-          ...(missingSubmission ? { status: "pending_review" } : {}),
+          ...(automaticFailureStatus ? { status: automaticFailureStatus } : {}),
           cycleClosedAt: now,
         })
         .where(eq(standardAssignmentsTable.id, assignment.id));
