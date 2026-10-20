@@ -644,6 +644,57 @@ export interface DisciplineRevocationInput {
   reason: string;
 }
 
+export type InactivityRequestStatus = typeof InactivityRequestStatus[keyof typeof InactivityRequestStatus];
+
+
+export const InactivityRequestStatus = {
+  pending_review: 'pending_review',
+  approved: 'approved',
+  rejected: 'rejected',
+  cancelled: 'cancelled',
+} as const;
+
+export interface InactivityRequest {
+  id: string;
+  memberId: string;
+  memberNickname: string;
+  memberRank: string;
+  startDate: string;
+  endDate: string;
+  reason: string;
+  status: InactivityRequestStatus;
+  submittedAt: string;
+  /** @nullable */
+  reviewedAt: string | null;
+  /** @nullable */
+  reviewerId: string | null;
+  /** @nullable */
+  reviewerNickname: string | null;
+}
+
+export interface InactivityRequestInput {
+  startDate: string;
+  endDate: string;
+  /**
+     * @minLength 3
+     * @maxLength 2000
+     */
+  reason: string;
+}
+
+export type InactivityRequestReviewInputStatus = typeof InactivityRequestReviewInputStatus[keyof typeof InactivityRequestReviewInputStatus];
+
+
+export const InactivityRequestReviewInputStatus = {
+  approved: 'approved',
+  rejected: 'rejected',
+  cancelled: 'cancelled',
+} as const;
+
+export interface InactivityRequestReviewInput {
+  status: InactivityRequestReviewInputStatus;
+}
+
 export type AuditLogCategory = typeof AuditLogCategory[keyof typeof AuditLogCategory];
 
 

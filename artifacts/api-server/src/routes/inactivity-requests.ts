@@ -9,6 +9,7 @@ import {
 } from "@workspace/db";
 import { requireManager, requireReadyAuth } from "../lib/auth";
 import { writeAudit } from "../lib/audit";
+import { restoreDailyStandardsAfterInactivityCancellation } from "../lib/daily-standards";
 import { getInactivityDailyCycleDueAtRange } from "../lib/inactivity-period";
 import {
   createInactivityRequestSchema,
@@ -120,7 +121,15 @@ router.patch(
         .where(eq(inactivityRequestsTable.id, params.data.id))
         .limit(1)
         .for("update");
-      if (!current || current.status !== "pending_review") return null;
+      const cancellingApproval = body.data.status === "cancelled";
+      if (
+        !current ||
+        (cancellingApproval
+          ? current.status !== "approved"
+          : current.status !== "pending_review")
+      ) {
+        return null;
+      }
 
       const reviewedAt = new Date();
       const [updated] = await tx
@@ -134,7 +143,10 @@ router.patch(
         .where(
           and(
             eq(inactivityRequestsTable.id, params.data.id),
-            eq(inactivityRequestsTable.status, "pending_review"),
+            eq(
+              inactivityRequestsTable.status,
+              cancellingApproval ? "approved" : "pending_review",
+            ),
           ),
         )
         .returning();
@@ -208,6 +220,33 @@ router.patch(
             },
           });
         }
+      }
+
+      if (body.data.status === "cancelled") {
+        const restoredStandardCount =
+          await restoreDailyStandardsAfterInactivityCancellation(
+            tx,
+            current.memberId,
+            updated.id,
+            reviewedAt,
+          );
+        await writeAudit(tx, {
+          actorId: req.factionUser!.id,
+          actorNickname: req.factionUser!.nickname,
+          category: "standards",
+          action: "inactivity.cancelled",
+          entityType: "inactivity_request",
+          entityId: updated.id,
+          entityLabel:
+            "Аннулирован неактив сотрудника: " + current.memberNickname,
+          targetMemberId: current.memberId,
+          targetMemberNickname: current.memberNickname,
+          details: {
+            startDate: updated.startDate,
+            endDate: updated.endDate,
+            restoredStandardCount,
+          },
+        });
       }
 
       return {

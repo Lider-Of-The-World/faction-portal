@@ -27,7 +27,7 @@ export const createInactivityRequestSchema = z
   });
 
 export const reviewInactivityRequestSchema = z.object({
-  status: z.enum(["approved", "rejected"]),
+  status: z.enum(["approved", "rejected", "cancelled"]),
 });
 
 export const inactivityRequestParamsSchema = z.object({

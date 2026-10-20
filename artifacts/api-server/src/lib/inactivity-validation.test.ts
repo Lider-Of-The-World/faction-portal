@@ -39,8 +39,10 @@ describe("inactivity request validation", () => {
     );
   });
 
-  it("only accepts approve or reject review decisions", () => {
+  it("accepts review decisions and cancellation of an approved request", () => {
     assert.equal(reviewInactivityRequestSchema.safeParse({ status: "approved" }).success, true);
+    assert.equal(reviewInactivityRequestSchema.safeParse({ status: "rejected" }).success, true);
+    assert.equal(reviewInactivityRequestSchema.safeParse({ status: "cancelled" }).success, true);
     assert.equal(reviewInactivityRequestSchema.safeParse({ status: "pending_review" }).success, false);
   });
 });

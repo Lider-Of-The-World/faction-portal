@@ -29,7 +29,14 @@ import {
   useAuditLogRecords, useDisciplineRecords, useIssueDiscipline, useRevokeDiscipline,
   type AuditCategory, type AuditLogEntry, type DisciplineRecord, type DisciplineType,
 } from './discipline-client';
-import { getInactivityRequestsQueryKey, useCreateInactivityRequest, useInactivityRequests, useReviewInactivityRequest, type InactivityRequest } from './inactivity-client';
+import {
+  getInactivityRequestsQueryKey,
+  useCreateInactivityRequest,
+  useInactivityRequests,
+  useReviewInactivityRequest,
+  type InactivityRequest,
+  type InactivityRequestStatus,
+} from './inactivity-client';
 import { getPointsQueryKey, useAwardPoints, useDeductPoints, usePoints } from './points-client';
 import type {
   Event, EventSubmission, Member, Standard, StandardAssignment, Task, SessionUser, Notification,
@@ -54,6 +61,12 @@ const NAV_ITEMS = [
 ];
 const memberTitle = (role: string, rank: string) => role === 'leader' ? 'Лидер' : role === 'admin' ? 'Администратор' : rank;
 const REVIEW_RANKS = ['Вице-Губернатор', 'Депутат', 'Адвокат', 'Лицензер'] as const;
+const INACTIVITY_REVIEW_TABS = [
+  { status: 'pending_review', label: 'На проверке' },
+  { status: 'approved', label: 'Одобренные' },
+  { status: 'rejected', label: 'Отказанные' },
+  { status: 'cancelled', label: 'Аннулированные' },
+] as const;
 const STANDARD_REVIEW_TABS = [
   { status: 'pending_review', label: 'Ожидают проверки' },
   { status: 'approved', label: 'Одобренные' },
@@ -92,7 +105,7 @@ function matchesReviewFilters(nickname: string, memberId: string | null, members
 }
 const LABEL: Record<string, string> = {
   active: 'Активен', blocked: 'Заблокирован', removed: 'Исключён', planned: 'Запланировано', completed: 'Завершено',
-  cancelled: 'Отменено', assigned: 'Назначено', in_progress: 'В работе', pending_review: 'На проверке',
+  cancelled: 'Аннулировано', assigned: 'Назначено', in_progress: 'В работе', pending_review: 'На проверке',
   approved: 'Принято', rejected: 'Отклонено', revision_required: 'Нужна доработка',
   not_submitted: 'Не сдано', overdue: 'Срок истёк', low: 'Низкий', normal: 'Обычный',
   high: 'Высокий', urgent: 'Срочный', standard_assigned: 'Назначен норматив',
@@ -701,15 +714,32 @@ function InactivityPage({ user }: { user: SessionUser }) {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [reason, setReason] = useState("");
-  const [filter, setFilter] = useState<"pending_review" | "all">("pending_review");
+  const [filter, setFilter] = useState<InactivityRequestStatus>("pending_review");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const manager = user.role !== "employee";
   const allRequests = requests.data ?? [];
-  const pendingCount = allRequests.filter((item) => item.status === "pending_review").length;
   const visibleRequests = manager
-    ? allRequests.filter((item) => filter === "all" || item.status === "pending_review")
+    ? allRequests.filter((item) => item.status === filter)
     : allRequests;
+  const emptyContent: Record<InactivityRequestStatus, { title: string; text: string }> = {
+    pending_review: {
+      title: "Нет заявок на проверку",
+      text: "Новые заявки сотрудников появятся здесь.",
+    },
+    approved: {
+      title: "Одобренных заявок пока нет",
+      text: "Заявки, которые вы одобрите, появятся здесь.",
+    },
+    rejected: {
+      title: "Отказанных заявок пока нет",
+      text: "Отклонённые заявки сотрудников появятся здесь.",
+    },
+    cancelled: {
+      title: "Аннулированных заявок пока нет",
+      text: "Аннулированные одобренные заявки появятся здесь.",
+    },
+  };
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -731,12 +761,25 @@ function InactivityPage({ user }: { user: SessionUser }) {
     );
   };
 
-  const decide = (item: InactivityRequest, status: "approved" | "rejected") => {
+  const decide = (
+    item: InactivityRequest,
+    status: "approved" | "rejected" | "cancelled",
+  ) => {
     setError("");
+    setSuccess("");
     review.mutate(
       { id: item.id, status },
       {
-        onSuccess: () => invalidate(qc, getInactivityRequestsQueryKey()),
+        onSuccess: () => {
+          setSuccess(
+            status === "cancelled"
+              ? "Неактив аннулирован. Дневной норматив за сегодня восстановлен, если он настроен и нет другого одобренного неактива."
+              : status === "approved"
+                ? "Заявка одобрена."
+                : "Заявка отклонена.",
+          );
+          invalidate(qc, getInactivityRequestsQueryKey());
+        },
         onError: (issue) =>
           setError(mutationErrorText(issue, "Не удалось сохранить решение.")),
       },
@@ -754,15 +797,30 @@ function InactivityPage({ user }: { user: SessionUser }) {
     {manager ? <>
       <div className="inactivity-review-toolbar">
         <div className="filter-tabs" role="tablist" aria-label="Фильтр заявок на неактив">
-          <button type="button" role="tab" aria-selected={filter === "pending_review"} className={filter === "pending_review" ? "selected" : ""} onClick={() => setFilter("pending_review")}>На проверке <span>{pendingCount}</span></button>
-          <button type="button" role="tab" aria-selected={filter === "all"} className={filter === "all" ? "selected" : ""} onClick={() => setFilter("all")}>Все заявки <span>{allRequests.length}</span></button>
+          {INACTIVITY_REVIEW_TABS.map(({ status, label }) => (
+            <button
+              key={status}
+              type="button"
+              role="tab"
+              aria-selected={filter === status}
+              className={filter === status ? "selected" : ""}
+              onClick={() => {
+                setFilter(status);
+                setSuccess("");
+              }}
+            >
+              {label}
+              <span>{allRequests.filter((item) => item.status === status).length}</span>
+            </button>
+          ))}
         </div>
       </div>
       {error && <div className="form-error inactivity-action-error" role="alert">{error}</div>}
+      {success && <div className="inactivity-form-success inactivity-action-success" role="status">{success}</div>}
       {requests.isLoading ? <PageSkeleton /> : requests.isError
         ? <InlineError message="Не удалось загрузить заявки на неактив." onRetry={() => void requests.refetch()} />
         : !visibleRequests.length
-          ? <EmptyState title={filter === "pending_review" ? "Нет заявок на проверку" : "Заявок пока нет"} text={filter === "pending_review" ? "Новые заявки сотрудников появятся здесь." : "Когда сотрудники подадут заявки, они появятся в этом списке."} />
+          ? <EmptyState title={emptyContent[filter].title} text={emptyContent[filter].text} />
           : <div className="inactivity-request-list">
             {visibleRequests.map((item) => <article className="inactivity-request-card" key={item.id}>
               <div className="inactivity-request-header">
@@ -777,10 +835,24 @@ function InactivityPage({ user }: { user: SessionUser }) {
                 <strong>{formatInactivityDate(item.startDate)} — {formatInactivityDate(item.endDate)}</strong>
               </div>
               <div className="inactivity-reason"><span>ПРИЧИНА</span><p>{item.reason}</p></div>
-              <div className="inactivity-request-meta">Подана {dateText(item.submittedAt, true)}{item.reviewerNickname ? " · Проверил(а): " + item.reviewerNickname : ""}</div>
+              <div className="inactivity-request-meta">Подана {dateText(item.submittedAt, true)}{item.reviewerNickname ? ` · ${item.status === "cancelled" ? "Аннулировал(а)" : "Проверил(а)"}: ` + item.reviewerNickname : ""}</div>
               {item.status === "pending_review" && <div className="inactivity-actions">
                 <button type="button" className="button button-danger-outline button-small" onClick={() => decide(item, "rejected")} disabled={review.isPending}>Отклонить</button>
                 <button type="button" className="button button-primary button-small" onClick={() => decide(item, "approved")} disabled={review.isPending}>Одобрить <Check size={14} /></button>
+              </div>}
+              {item.status === "approved" && <div className="inactivity-actions">
+                <button
+                  type="button"
+                  className="button button-danger-outline button-small"
+                  disabled={review.isPending}
+                  onClick={() => {
+                    if (confirm("Аннулировать одобренный неактив? Если на сегодня для сотрудника настроен норматив и нет другого одобренного неактива, он появится сразу.")) {
+                      decide(item, "cancelled");
+                    }
+                  }}
+                >
+                  Аннулировать
+                </button>
               </div>}
             </article>)}
           </div>}

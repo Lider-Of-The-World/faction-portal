@@ -1,7 +1,11 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 
-export type InactivityRequestStatus = "pending_review" | "approved" | "rejected";
+export type InactivityRequestStatus =
+  | "pending_review"
+  | "approved"
+  | "rejected"
+  | "cancelled";
 
 export type InactivityRequest = {
   id: string;
@@ -49,7 +53,13 @@ export function useCreateInactivityRequest() {
 
 export function useReviewInactivityRequest() {
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: "approved" | "rejected" }) =>
+    mutationFn: ({
+      id,
+      status,
+    }: {
+      id: string;
+      status: "approved" | "rejected" | "cancelled";
+    }) =>
       customFetch<InactivityRequest>(
         "/api/inactivity-requests/" + encodeURIComponent(id) + "/review",
         {

@@ -794,7 +794,7 @@ paths:
     patch:
       operationId: reviewInactivityRequest
       tags: [inactivity]
-      summary: Одобрить или отклонить заявку (только лидер или администратор)
+      summary: Одобрить, отклонить или аннулировать одобренную заявку (только лидер или администратор)
       parameters:
         - name: id
           in: path
@@ -1326,7 +1326,7 @@ components:
         reason: { type: string, minLength: 3, maxLength: 2000 }
     InactivityRequestStatus:
       type: string
-      enum: [pending_review, approved, rejected]
+      enum: [pending_review, approved, rejected, cancelled]
     InactivityRequest:
       type: object
       required: [id, memberId, memberNickname, memberRank, startDate, endDate, reason, status, submittedAt, reviewedAt, reviewerId, reviewerNickname]
@@ -1354,7 +1354,7 @@ components:
       type: object
       required: [status]
       properties:
-        status: { type: string, enum: [approved, rejected] }
+        status: { type: string, enum: [approved, rejected, cancelled] }
     AuditLog:
       type: object
       required: [id, actorId, actorNickname, category, action, entityType, entityId, entityLabel, targetMemberId, targetMemberNickname, reason, details, createdAt]
