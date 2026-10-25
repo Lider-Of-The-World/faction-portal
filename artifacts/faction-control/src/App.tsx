@@ -127,6 +127,7 @@ const mutationErrorText = (error: unknown, fallback: string) => {
 };
 const imageTypes = ['image/jpeg', 'image/png', 'image/webp'];
 const maxImageSize = 25 * 1024 * 1024;
+const maxStandardScreenshots = 15;
 
 function App() {
   return <QueryClientProvider client={queryClient}><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Router /></WouterRouter></QueryClientProvider>;
@@ -452,11 +453,12 @@ function SubmitModal({ title, detail, onClose, onSubmitted, id, pendingHook }: {
   const [files, setFiles] = useState<File[]>([]); const [comment, setComment] = useState(''); const [error, setError] = useState(''); const busy = upload.isPending || standardSubmit.isPending || taskSubmit.isPending || eventSubmit.isPending;
   const [sendPhase, setSendPhase] = useState<'idle' | 'uploading' | 'submitting'>('idle'); const [uploadedCount, setUploadedCount] = useState(0);
   const isBusy = busy || eventSubmit.isPending || sendPhase !== 'idle';
+  const maxFiles = pendingHook === 'standard' ? maxStandardScreenshots : 50;
   const previews = useMemo(() => files.map((file) => ({ file, url: URL.createObjectURL(file) })), [files]);
   useEffect(() => () => previews.forEach(({ url }) => URL.revokeObjectURL(url)), [previews]);
   const addFiles = (list: FileList | null) => {
     if (!list) return; const next = Array.from(list); const valid: File[] = []; let issue = '';
-    for (const f of next) { if (files.length + valid.length >= 50) { issue = 'Можно прикрепить не более 50 скриншотов.'; break; } if (!imageTypes.includes(f.type)) issue = `${f.name}: используйте JPG, PNG или WebP.`; else if (f.size > maxImageSize) issue = `${f.name}: размер больше 25 МБ.`; else valid.push(f); }
+    for (const f of next) { if (files.length + valid.length >= maxFiles) { issue = pendingHook === 'standard' ? `Для норматива можно прикрепить не более ${maxFiles} скриншотов.` : `Можно прикрепить не более ${maxFiles} скриншотов.`; break; } if (!imageTypes.includes(f.type)) issue = `${f.name}: используйте JPG, PNG или WebP.`; else if (f.size > maxImageSize) issue = `${f.name}: размер больше 25 МБ.`; else valid.push(f); }
     if (issue) setError(issue); else setError(''); setFiles((current) => [...current, ...valid]);
   };
   const send = async (e: FormEvent) => {
@@ -500,8 +502,8 @@ function SubmitModal({ title, detail, onClose, onSubmitted, id, pendingHook }: {
   };
   const submitLabel = sendPhase === 'uploading' ? `Загружаем скриншоты… ${uploadedCount}/${files.length}` : sendPhase === 'submitting' ? 'Отправляем отчёт…' : 'Отправить на проверку';
   return <Modal title={title} subtitle={detail} onClose={onClose} closeDisabled={isBusy} className="upload-modal"><form className="dialog-form" onSubmit={send} aria-busy={isBusy}>
-    <div className="upload-instruction"><Camera size={19} /><div><strong>Подтвердите выполнение скриншотами</strong><span>Изображения JPG, PNG или WebP · до 25 МБ каждое · количество не ограничено</span></div></div>
-    <label className="file-drop upload-drop"><ImagePlus size={22} /><strong>Выбрать скриншоты</strong><span>Выберите изображения из галереи или файлов</span><input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(e) => { addFiles(e.target.files); e.currentTarget.value = ''; }} disabled={isBusy} data-testid="input-submission-images" /></label>
+    <div className="upload-instruction"><Camera size={19} /><div><strong>Подтвердите выполнение скриншотами</strong><span>Изображения JPG, PNG или WebP · до 25 МБ каждое · максимум {maxFiles} скриншотов</span></div></div>
+    <label className="file-drop upload-drop"><ImagePlus size={22} /><strong>Выбрать скриншоты</strong><span>Выберите изображения из галереи или файлов</span><input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(e) => { addFiles(e.target.files); e.currentTarget.value = ''; }} disabled={isBusy || files.length >= maxFiles} data-testid="input-submission-images" /></label>
     {!!files.length && <div className="local-preview-grid">{previews.map(({ file, url }, index) => <div className="local-preview" key={`${file.name}-${index}`}><img src={url} alt={file.name} /><button type="button" aria-label={`Убрать ${file.name}`} onClick={() => setFiles((f) => f.filter((_, i) => i !== index))}><X size={13} /></button><span>{file.name}</span></div>)}</div>}
      <Field label={pendingHook === 'standard' ? 'Комментарий к результату (обязательно)' : 'Комментарий к отправке'}><textarea value={comment} onChange={(e) => setComment(e.target.value)} maxLength={2000} rows={3} required={pendingHook === 'standard'} placeholder="Что важно проверить?" /></Field>{error && <div className="form-error" role="alert">{error}</div>}
     <div className="dialog-actions"><button type="button" className="button button-secondary" onClick={onClose} disabled={isBusy}>Отмена</button><button className="button button-primary" disabled={isBusy || !files.length}><Upload size={15} />{submitLabel}</button></div>
