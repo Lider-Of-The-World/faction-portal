@@ -643,12 +643,12 @@ export const SubmitStandardParams = zod.object({
 
 export const submitStandardBodyCommentMax = 2000;
 
-
+export const submitStandardBodyUploadIdsMax = 15;
 
 
 export const SubmitStandardBody = zod.object({
   "comment": zod.string().min(1).max(submitStandardBodyCommentMax),
-  "uploadIds": zod.array(zod.string().uuid()).min(1)
+  "uploadIds": zod.array(zod.string().uuid()).min(1).max(submitStandardBodyUploadIdsMax)
 })
 
 export const SubmitStandardResponse = zod.object({

@@ -1208,6 +1208,7 @@ components:
         uploadIds:
           type: array
           minItems: 1
+          maxItems: 15
           items: { type: string, format: uuid }
     TaskSubmissionInput:
       type: object

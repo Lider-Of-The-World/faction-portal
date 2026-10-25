@@ -14,6 +14,7 @@ import {
   SubmitStandardBody,
   SubmitStandardParams,
   SubmitStandardResponse,
+  submitStandardBodyUploadIdsMax,
 } from "@workspace/api-zod";
 import {
   db,
@@ -357,6 +358,16 @@ router.post(
   async (req, res): Promise<void> => {
     const params = SubmitStandardParams.safeParse(req.params);
     const body = SubmitStandardBody.safeParse(req.body);
+    const requestedUploadIds = req.body?.uploadIds;
+    if (
+      Array.isArray(requestedUploadIds) &&
+      requestedUploadIds.length > submitStandardBodyUploadIdsMax
+    ) {
+      res.status(400).json({
+        error: `Для норматива можно прикрепить не более ${submitStandardBodyUploadIdsMax} скриншотов.`,
+      });
+      return;
+    }
     if (!params.success || !body.success || !body.data.comment.trim()) {
       res.status(400).json({ error: "Добавьте хотя бы один допустимый скриншот." });
       return;
