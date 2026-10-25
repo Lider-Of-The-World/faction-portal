@@ -69,15 +69,22 @@ test("upload URL response accepts Dropbox's same-origin route and absolute stora
   );
 });
 
-test("standard and task submissions accept more than eight screenshots", () => {
+test("standard submissions are limited to fifteen; task submissions are unchanged", () => {
   const uploadIds = Array.from(
-    { length: 9 },
+    { length: 16 },
     (_, index) =>
       `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
   );
   assert.equal(
-    SubmitStandardBody.safeParse({ comment: "Proof", uploadIds }).success,
+    SubmitStandardBody.safeParse({
+      comment: "Proof",
+      uploadIds: uploadIds.slice(0, 15),
+    }).success,
     true,
+  );
+  assert.equal(
+    SubmitStandardBody.safeParse({ comment: "Proof", uploadIds }).success,
+    false,
   );
   assert.equal(
     SubmitTaskBody.safeParse({ comment: "Proof", uploadIds }).success,
